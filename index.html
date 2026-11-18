@@ -166,7 +166,11 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('on');
   clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('on'); }, 2200);
 }
-function busy(on) { el('busy').classList.toggle('on', !!on); }
+function busy(on) {
+  var b = el('busy');
+  b.classList.toggle('on', !!on);
+  b.textContent = typeof on === 'string' ? on : 'Working\u2026';
+}
 function publicUrl(path) {
   return SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + path;
 }
@@ -298,39 +302,68 @@ el('add').addEventListener('click', function () {
   el('picker').click();
 });
 
+/* slides of one carousel share a name and end in a number: POF-bulk-1, POF-bulk-2 ... */
+function stem(name) { return name.replace(/\.[^.]+$/, ''); }
+function groupOf(name) {
+  var m = stem(name).match(/^(.*?)[ _.\-]*(\d+)$/);
+  return m && m[1] ? { key: m[1], n: parseInt(m[2], 10) } : { key: stem(name), n: 0 };
+}
+
 el('picker').addEventListener('change', function (e) {
   var files = [].slice.call(e.target.files);
   e.target.value = '';
   if (!files.length) return;
-  var images = files.filter(function (f) { return f.type.indexOf('image') === 0; });
-  var videos = files.filter(function (f) { return f.type.indexOf('video') === 0; });
-  busy(true);
+
   var jobs = [];
-  if (images.length) jobs.push(makeItem('carousel', images));
-  videos.forEach(function (v) { jobs.push(makeItem('video', [v])); });
-  Promise.all(jobs).then(function () {
-    busy(false); loadItems(); toast('Uploaded');
+  files.filter(function (f) { return f.type.indexOf('video') === 0; })
+    .forEach(function (v) { jobs.push({ kind: 'video', title: stem(v.name), files: [v] }); });
+
+  var buckets = {}, order = [];
+  files.filter(function (f) { return f.type.indexOf('image') === 0; })
+    .forEach(function (img) {
+      var g = groupOf(img.name);
+      if (!buckets[g.key]) { buckets[g.key] = []; order.push(g.key); }
+      buckets[g.key].push({ f: img, n: g.n });
+    });
+  order.forEach(function (k) {
+    var set = buckets[k].sort(function (a, b) { return a.n - b.n; })
+      .map(function (x) { return x.f; });
+    jobs.push({ kind: 'carousel', title: k, files: set });
+  });
+
+  var total = files.length, done = 0;
+  busy('Uploading 0 of ' + total + '\u2026');
+  var chain = Promise.resolve();
+  jobs.forEach(function (job) {
+    chain = chain.then(function () {
+      return makeItem(job, function () {
+        done++; busy('Uploading ' + done + ' of ' + total + '\u2026');
+      });
+    });
+  });
+  chain.then(function () {
+    busy(false); loadItems();
+    toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
   }).catch(function (err) { busy(false); toast(String(err.message || err)); });
 });
 
-function makeItem(kind, files) {
+function makeItem(job, tick) {
   var paths = [];
   var chain = Promise.resolve();
-  files.forEach(function (f) {
+  job.files.forEach(function (f) {
     chain = chain.then(function () {
       var path = folderId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
         + '-' + f.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
       return db.storage.from(BUCKET).upload(path, f, { contentType: f.type })
         .then(function (r) {
           if (r.error) throw r.error;
-          paths.push(path);
+          paths.push(path); if (tick) tick();
         });
     });
   });
   return chain.then(function () {
     return db.from('items').insert({
-      folder_id: folderId, kind: kind, paths: paths,
-      title: files[0].name.replace(/\.[^.]+$/, '')
+      folder_id: folderId, kind: job.kind, paths: paths, title: job.title
     });
   }).then(function (r) { if (r.error) throw r.error; });
 }
