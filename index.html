@@ -65,6 +65,7 @@ body.hideposted .card[data-posted="1"]{display:none}
 .strip img{width:100%;flex:0 0 100%;scroll-snap-align:center;display:block}
 .counter{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.62);
  border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700}
+.flag{background:rgba(232,163,23,.14);color:var(--warn);font-size:12px;padding:8px 12px}
 .body{padding:16px}
 .title{width:100%;background:transparent;border:none;font-size:17px;font-weight:700;
  letter-spacing:-.01em;padding:0}
@@ -88,8 +89,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  border:1px solid var(--line);border-radius:11px;padding:11px 12px;font-size:14px;
  resize:vertical}
 .manage{display:flex;gap:8px;margin-top:10px}
-.manage button{flex:1;padding:11px 6px;border-radius:10px;border:1px solid var(--line);
- background:transparent;color:var(--mut);font-size:13px;font-weight:600}
+.manage button{flex:1;padding:11px 4px;border-radius:10px;border:1px solid var(--line);
+ background:transparent;color:var(--mut);font-size:12.5px;font-weight:600;white-space:nowrap}
+.manage .get{color:var(--ink)}
 .manage .post{color:var(--ink)}
 .empty{color:var(--mut);font-size:14px;padding:22px 2px}
 .foot{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:14px 16px;
@@ -137,7 +139,8 @@ body.hideposted .card[data-posted="1"]{display:none}
       Hide posted</label>
     <button class="ghost" id="add">+ Add content</button>
   </div>
-  <input type="file" id="picker" accept="video/*,image/*" multiple hidden>
+  <input type="file" id="picker" multiple hidden
+    accept="video/*,image/*,.mov,.MOV,.mp4,.m4v,.webm,.avi,.mkv,.png,.jpg,.jpeg,.webp,.heic">
   <div class="grid" id="grid"></div>
 </div>
 
@@ -173,6 +176,19 @@ function busy(on) {
 }
 function publicUrl(path) {
   return SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + path;
+}
+function safeName(s) {
+  return String(s || 'content').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 70);
+}
+function extOf(path) {
+  var m = /\.([a-z0-9]+)$/i.exec(path);
+  return m ? '.' + m[1].toLowerCase() : '';
+}
+function pull(path, filename) {
+  var a = document.createElement('a');
+  a.href = publicUrl(path) + '?download=' + encodeURIComponent(filename);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -302,6 +318,11 @@ el('add').addEventListener('click', function () {
   el('picker').click();
 });
 
+var VID = /\.(mov|mp4|m4v|webm|avi|mkv|3gp)$/i;
+var IMG = /\.(png|jpe?g|webp|gif|heic|heif)$/i;
+function isVideo(f) { return f.type.indexOf('video') === 0 || VID.test(f.name); }
+function isImage(f) { return f.type.indexOf('image') === 0 || IMG.test(f.name); }
+
 /* slides of one carousel share a name and end in a number: POF-bulk-1, POF-bulk-2 ... */
 function stem(name) { return name.replace(/\.[^.]+$/, ''); }
 function groupOf(name) {
@@ -315,11 +336,11 @@ el('picker').addEventListener('change', function (e) {
   if (!files.length) return;
 
   var jobs = [];
-  files.filter(function (f) { return f.type.indexOf('video') === 0; })
+  files.filter(isVideo)
     .forEach(function (v) { jobs.push({ kind: 'video', title: stem(v.name), files: [v] }); });
 
   var buckets = {}, order = [];
-  files.filter(function (f) { return f.type.indexOf('image') === 0; })
+  files.filter(isImage)
     .forEach(function (img) {
       var g = groupOf(img.name);
       if (!buckets[g.key]) { buckets[g.key] = []; order.push(g.key); }
@@ -341,9 +362,11 @@ el('picker').addEventListener('change', function (e) {
       });
     });
   });
+  var movs = files.filter(function (f) { return /\.mov$/i.test(f.name); }).length;
   chain.then(function () {
     busy(false); loadItems();
-    toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
+    if (movs) toast(movs + ' .MOV uploaded \u2014 may not play on Android. Convert to MP4.');
+    else toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
   }).catch(function (err) { busy(false); toast(String(err.message || err)); });
 });
 
@@ -392,7 +415,11 @@ function drawItems() {
     var paths = it.paths || [];
     if (it.kind === 'video' && paths[0]) {
       media = '<div class="media"><video playsinline preload="metadata" controls src="'
-        + esc(publicUrl(paths[0])) + '"></video></div>';
+        + esc(publicUrl(paths[0])) + '"></video>'
+        + (/\.mov$/i.test(paths[0])
+            ? '<p class="flag">.MOV from iPhone \u2014 may not play on Android or Chrome</p>'
+            : '')
+        + '</div>';
     } else if (paths.length) {
       media = '<div class="media"><div class="strip">'
         + paths.map(function (p) { return '<img loading="lazy" src="' + esc(publicUrl(p)) + '">'; }).join('')
@@ -411,7 +438,8 @@ function drawItems() {
       + '<button type="button" data-v="changes">Changes</button>'
       + '<button type="button" data-v="rejected">Reject</button></div>'
       + '<textarea class="comment" rows="2" placeholder="Note (optional)">' + esc(it.note) + '</textarea>'
-      + '<div class="manage"><button type="button" class="post">'
+      + '<div class="manage"><button type="button" class="get">Download</button>'
+      + '<button type="button" class="post">'
       + (it.posted ? 'Undo posted' : 'Mark as posted') + '</button>'
       + '<button type="button" class="drop">Delete</button></div>'
       + '</div>';
@@ -444,6 +472,23 @@ function drawItems() {
     note.addEventListener('change', function () {
       it.note = note.value.trim(); patch(it.id, { note: it.note });
     });
+    card.querySelector('.get').addEventListener('click', function () {
+      if (!paths.length) { toast('Nothing to download'); return; }
+      var base = safeName(it.title);
+      if (paths.length === 1) {
+        pull(paths[0], base + extOf(paths[0]));
+        toast('Downloading');
+        return;
+      }
+      /* browsers block a burst of downloads, so they go one at a time */
+      toast('Downloading ' + paths.length + ' slides');
+      paths.forEach(function (p, i) {
+        setTimeout(function () {
+          pull(p, base + ' ' + (i + 1) + extOf(p));
+        }, i * 900);
+      });
+    });
+
     var post = card.querySelector('.post');
     post.addEventListener('click', function () {
       it.posted = !it.posted;
