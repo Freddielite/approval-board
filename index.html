@@ -103,6 +103,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  background:rgba(14,11,9,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line);
  display:flex;gap:10px;align-items:center}
 .foot span{font-size:13px;color:var(--mut);flex:1}
+.resume{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 14px;
+ border:1px solid rgba(232,163,23,.4);background:rgba(232,163,23,.1);border-radius:13px}
+.resume span{flex:1;font-size:13px;color:var(--warn)}
 .work{position:fixed;left:16px;right:16px;bottom:96px;z-index:28;background:var(--card);
  border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:none}
 .work.on{display:block}
@@ -635,6 +638,10 @@ function makeItem(job, fid, tick) {
 }
 
 /* ---------- light preview, built in the browser ---------- */
+window.addEventListener('beforeunload', function (e) {
+  if (working || queue.length) { e.preventDefault(); e.returnValue = ''; return ''; }
+});
+
 var FF = {
   lib: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js',
   util: 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/util.js',
@@ -642,6 +649,23 @@ var FF = {
   wasm: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm'
 };
 var ff = null, ffLoading = null, queue = [], working = false;
+
+function twice(fn, label, inst, scratch) {
+  return fn().catch(function (err) {
+    console.warn('retrying ' + label, err);
+    work('Retrying ' + label, 0);
+    if (inst && scratch) { try { inst.deleteFile(scratch); } catch (e) {} }
+    return new Promise(function (r) { setTimeout(r, 1200); }).then(fn);
+  });
+}
+
+/* a truncated encode is small and useless, so it never reaches storage */
+function sane(out, label) {
+  if (!out || !out.buffer || out.buffer.byteLength < 20000) {
+    throw new Error(label + ' came out empty');
+  }
+  return out;
+}
 
 function script(src) {
   return new Promise(function (res, rej) {
@@ -708,12 +732,14 @@ function runQueue() {
     }).then(function () {
       /* the small copy first, so the board is usable while the big one runs */
       work('Making preview' + left, 0);
-      return inst.exec(['-i', inName, '-vf', 'scale=-2:480', '-c:v', 'libx264',
+      return twice(function () {
+      return inst.exec(['-y', '-i', inName, '-vf', 'scale=-2:480', '-c:v', 'libx264',
         '-profile:v', 'baseline', '-level', '3.1', '-preset', 'veryfast', '-crf', '30',
         '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '64k',
         '-movflags', '+faststart', 'out.mp4'])
         .then(function () { return inst.readFile('out.mp4'); })
         .then(function (out) {
+          sane(out, 'Preview');
           var blob = new Blob([out.buffer], { type: 'video/mp4' });
           var path = job.fid + '/' + job.id + '-preview.mp4';
           return db.storage.from(BUCKET).upload(path, blob,
@@ -724,17 +750,19 @@ function runQueue() {
             return db.from('items').update({ preview: path }).eq('id', job.id)
               .then(function () { loadItems(); });
           });
-        });
+        }); }, 'preview', inst, 'out.mp4');
     }).then(function () {
       /* then H.264 at full size, which is the format every app accepts */
       if (!isMov) return null;
       work('Converting to MP4' + left, 0);
-      return inst.exec(['-i', inName, '-c:v', 'libx264', '-profile:v', 'high',
+      return twice(function () {
+      return inst.exec(['-y', '-i', inName, '-c:v', 'libx264', '-profile:v', 'high',
         '-level', '4.2', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p',
         '-tag:v', 'avc1', '-c:a', 'aac', '-b:a', '128k',
         '-movflags', '+faststart', 'full.mp4'])
         .then(function () { return inst.readFile('full.mp4'); })
         .then(function (out) {
+          sane(out, 'MP4');
           var blob = new Blob([out.buffer], { type: 'video/mp4' });
           var path = job.fid + '/' + job.id + '-full.mp4';
           work('Saving MP4', 1);
@@ -744,7 +772,7 @@ function runQueue() {
             fields.paths = [path];
             inst.deleteFile('full.mp4').catch(function () {});
           });
-        });
+        }); }, 'conversion', inst, 'full.mp4');
     }).then(function () {
       inst.deleteFile(inName).catch(function () {});
       if (!fields.paths) return null;
@@ -759,6 +787,48 @@ function runQueue() {
     working = false;
     if (queue.length) runQueue(); else work(false);
   });
+}
+
+/* work left half done is found again on the next visit */
+function unfinished() {
+  return items.filter(function (it) {
+    if (it.kind !== 'video' || !it.paths || !it.paths[0]) return false;
+    if (queue.some(function (q) { return q.id === it.id; })) return false;
+    return /\.mov$/i.test(it.paths[0]) || !it.preview;
+  });
+}
+
+function drawResume() {
+  var old = el('resume');
+  if (old) old.remove();
+  var left = unfinished();
+  if (!left.length || working) return;
+  var bar = document.createElement('div');
+  bar.id = 'resume';
+  bar.className = 'resume';
+  bar.innerHTML = '<span>' + left.length +
+    (left.length === 1 ? ' video still needs converting' : ' videos still need converting') +
+    '</span><button class="ghost" type="button">Finish them</button>';
+  bar.querySelector('button').addEventListener('click', function () {
+    bar.remove(); resume(left);
+  });
+  el('grid').before(bar);
+}
+
+function resume(list) {
+  work('Fetching ' + list.length + ' file' + (list.length > 1 ? 's' : ''), 0);
+  var chain = Promise.resolve();
+  list.forEach(function (it) {
+    chain = chain.then(function () {
+      return db.storage.from(BUCKET).download(it.paths[0]).then(function (r) {
+        if (r.error || !r.data) throw (r.error || new Error('download failed'));
+        var name = /\.mov$/i.test(it.paths[0]) ? 'resume.mov' : 'resume.mp4';
+        var f = new File([r.data], name, { type: r.data.type || 'video/mp4' });
+        queueProxy(it.id, it.folder_id, f, it.paths);
+      });
+    });
+  });
+  chain.catch(function (e) { toast('Could not fetch: ' + (e.message || e)); work(false); });
 }
 
 /* ---------- items ---------- */
@@ -780,6 +850,7 @@ function drawItems() {
   if (!folderId) { g.innerHTML = '<p class="empty">No folders yet for ' + esc(brand) + '.</p>'; tally(); return; }
   if (!items.length) { g.innerHTML = '<p class="empty">Nothing in this folder yet.</p>'; tally(); return; }
 
+  drawResume();
   items.forEach(function (it) {
     var card = document.createElement('article');
     card.className = 'card';
