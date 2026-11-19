@@ -817,12 +817,24 @@ function runQueue() {
       work('Converting to MP4' + left, 0);
       return twice(function () {
       return inst.exec(['-y', '-i', inName, '-c:v', 'libx264', '-profile:v', 'high',
-        '-level', '4.2', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p',
-        '-tag:v', 'avc1', '-c:a', 'aac', '-b:a', '128k',
+        '-level', '4.2', '-preset', 'faster', '-crf', '20', '-pix_fmt', 'yuv420p',
+        '-tag:v', 'avc1', '-c:a', 'aac', '-b:a', '160k',
         '-movflags', '+faststart', 'full.mp4'])
         .then(function () { return inst.readFile('full.mp4'); })
         .then(function (out) {
           sane(out, 'MP4');
+          if (out.buffer.byteLength > 48 * 1024 * 1024) {
+            work('Still a bit large, trimming it down', 0);
+            return inst.exec(['-y', '-i', inName, '-c:v', 'libx264', '-profile:v', 'high',
+              '-level', '4.2', '-preset', 'faster', '-crf', '23', '-pix_fmt', 'yuv420p',
+              '-tag:v', 'avc1', '-c:a', 'aac', '-b:a', '160k',
+              '-movflags', '+faststart', 'full.mp4'])
+              .then(function () { return inst.readFile('full.mp4'); })
+              .then(function (second) { return sane(second, 'MP4'); });
+          }
+          return out;
+        })
+        .then(function (out) {
           var blob = new Blob([out.buffer], { type: 'video/mp4' });
           var path = job.fid + '/' + job.id + '-full.mp4';
           work('Saving MP4', 1);
