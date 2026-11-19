@@ -84,8 +84,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  resize:vertical;min-height:120px}
 .cap .copy{margin-top:10px}
 .verdict{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
-.verdict button{padding:13px 6px;border-radius:11px;border:1px solid var(--line);
- background:rgba(255,255,255,.05);font-size:14px;font-weight:600}
+.verdict button{padding:13px 4px;border-radius:11px;border:1px solid var(--line);
+ background:rgba(255,255,255,.05);font-size:14px;font-weight:600;line-height:1.2}
+.verdict button[aria-pressed=true]{font-weight:800}
 .verdict button[aria-pressed=true][data-v=approved]{background:var(--ok);border-color:var(--ok);
  color:#06130B}
 .verdict button[aria-pressed=true][data-v=changes]{background:var(--warn);
@@ -988,18 +989,27 @@ function drawItems() {
       + '<button type="button" class="drop">Delete</button></div>'
       + '</div>';
 
+    var VERB = { approved: 'Approve', changes: 'Changes', rejected: 'Reject' };
+    var DONE = { approved: 'Approved', changes: 'Changes asked', rejected: 'Rejected' };
+
+    function paintVerdict() {
+      card.querySelectorAll('.verdict button').forEach(function (o) {
+        var mine = o.dataset.v === it.verdict;
+        o.setAttribute('aria-pressed', String(mine));
+        o.textContent = mine ? DONE[o.dataset.v] : VERB[o.dataset.v];
+      });
+    }
+
     card.querySelectorAll('.verdict button').forEach(function (b) {
-      b.setAttribute('aria-pressed', String(it.verdict === b.dataset.v));
       b.addEventListener('click', function () {
         var v = it.verdict === b.dataset.v ? null : b.dataset.v;
         it.verdict = v;
         if (v) card.dataset.verdict = v; else card.removeAttribute('data-verdict');
-        card.querySelectorAll('.verdict button').forEach(function (o) {
-          o.setAttribute('aria-pressed', String(o.dataset.v === v));
-        });
+        paintVerdict();
         patch(it.id, { verdict: v }); tally();
       });
     });
+    paintVerdict();
 
     var dsel = card.querySelector('.dayset');
     dsel.addEventListener('click', function () {
