@@ -236,6 +236,7 @@ var BRANDS = [
   { name: 'Open Delta', c1: '#12A45B', c2: '#6BE3A4' }
 ];
 
+var INBOX = 'New';
 var DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 var db = null, brand = BRANDS[0].name, folders = [], folderId = null, items = [];
 var el = function (id) { return document.getElementById(id); };
@@ -274,15 +275,20 @@ function esc(s) {
 }
 
 /* ---------- popups, so nothing falls back to the browser's own ---------- */
-var popBusy = false;
+var popBusy = false, popGen = 0;
 function openPop(html, wire) {
   var pop = el('pop'), card = el('popcard');
+  var gen = ++popGen;
   card.innerHTML = html;
   pop.classList.add('on');
   requestAnimationFrame(function () { pop.classList.add('show'); });
   function close() {
     pop.classList.remove('show');
-    setTimeout(function () { pop.classList.remove('on'); card.innerHTML = ''; }, 160);
+    /* a popup opened straight after this one must not be wiped by the fade */
+    setTimeout(function () {
+      if (gen !== popGen) return;
+      pop.classList.remove('on'); card.innerHTML = '';
+    }, 160);
     pop.onclick = null; document.onkeydown = null; popBusy = false;
   }
   popBusy = true;
@@ -379,7 +385,7 @@ function start() {
 function drawTabs() {
   var t = el('tabs');
   t.innerHTML = '';
-  BRANDS.forEach(function (b) {
+  [{ name: INBOX, c1: '#6E56CF', c2: '#B4A1FF' }].concat(BRANDS).forEach(function (b) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = b.name;
@@ -414,6 +420,10 @@ function loadFolders() {
 function drawFolders() {
   var f = el('folders');
   f.innerHTML = '';
+  if (brand === INBOX) {
+    el('hint').textContent = 'Drop anything here, sort it later';
+    return;
+  }
   folders.forEach(function (fo) {
     var b = document.createElement('button');
     b.type = 'button';
@@ -523,6 +533,8 @@ el('picker').addEventListener('change', function (e) {
         .map(function (x) { return x.f; }) });
   });
 
+  if (brand === INBOX) { send(pending.map(function (j) {
+    j.brand = INBOX; j.day = null; return j; })); pending = []; return; }
   openSheet();
 });
 
@@ -570,8 +582,13 @@ el('go').addEventListener('click', function () {
   el('sheet').classList.remove('on');
   var jobs = pending.slice();
   pending = [];
+  send(jobs);
+});
+
+function send(jobs) {
   if (!jobs.length) return;
-  var folderName = (folders.filter(function (f) { return f.id === folderId; })[0] || {}).name;
+  var folderName = (folders.filter(function (f) { return f.id === folderId; })[0] || {}).name
+    || INBOX;
   var total = jobs.reduce(function (n, j) { return n + j.files.length; }, 0), done = 0;
   busy('Uploading 0 of ' + total + '\u2026');
 
@@ -595,7 +612,7 @@ el('go').addEventListener('click', function () {
     else if (elsewhere) toast(jobs.length + ' uploaded \u00b7 ' + elsewhere + ' sent to other brands');
     else toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
   }).catch(function (err) { busy(false); toast(String(err.message || err)); });
-});
+}
 
 /* each brand keeps its own copy of a week, made on demand */
 function folderFor(targetBrand, name) {
@@ -917,7 +934,9 @@ function drawItems() {
       + '<button type="button" data-v="changes">Changes</button>'
       + '<button type="button" data-v="rejected">Reject</button></div>'
       + '<textarea class="comment" rows="2" placeholder="Note (optional)">' + esc(it.note) + '</textarea>'
-      + '<div class="manage"><button type="button" class="get">Download</button>'
+      + '<div class="manage">'
+      + (brand === INBOX ? '<button type="button" class="move">Move to\u2026</button>' : '')
+      + '<button type="button" class="get">Download</button>'
       + '<button type="button" class="post">'
       + (it.posted ? 'Undo posted' : 'Mark as posted') + '</button>'
       + '<button type="button" class="drop">Delete</button></div>'
@@ -981,6 +1000,9 @@ function drawItems() {
       });
     });
 
+    var mv = card.querySelector('.move');
+    if (mv) mv.addEventListener('click', function () { moveItem(it); });
+
     var post = card.querySelector('.post');
     post.addEventListener('click', function () {
       it.posted = !it.posted;
@@ -1013,6 +1035,48 @@ function drawItems() {
     g.appendChild(card);
   });
   tally();
+}
+
+/* filing something from the inbox into a brand's week */
+function moveItem(it) {
+  choose('Which brand?', BRANDS.map(function (b) {
+    return { label: b.name, value: b.name }; }), null).then(function (target) {
+    if (!target) return;
+    return db.from('folders').select('*').eq('brand', target)
+      .order('created_at', { ascending: false }).then(function (r) {
+      var list = (r.data || []).map(function (f) {
+        return { label: f.name, value: f.id }; });
+      list.push({ label: '+ New folder', value: '__new__' });
+      return choose('Which folder in ' + target + '?', list, null).then(function (pick) {
+        if (!pick) return;
+        if (pick !== '__new__') return finishMove(it, pick, target);
+        return ask('New folder in ' + target, 'Name it for the week', 'Week 1', 'Create')
+          .then(function (name) {
+            if (!name) return;
+            return db.from('folders').insert({ brand: target, name: name }).select().single()
+              .then(function (ins) {
+                if (ins.error) throw ins.error;
+                return finishMove(it, ins.data.id, target);
+              });
+          });
+      });
+    });
+  }).catch(function (e) { toast(String(e.message || e)); });
+}
+
+function finishMove(it, fid, target) {
+  var opts = [{ label: 'No day', value: '' }].concat(DAYS.map(function (d) {
+    return { label: d, value: d }; }));
+  return choose('Day to post', opts, it.day || '').then(function (day) {
+    busy(true);
+    return db.from('items').update({ folder_id: fid, day: day || null }).eq('id', it.id)
+      .then(function (r) {
+        busy(false);
+        if (r.error) { toast(r.error.message); return; }
+        loadItems();
+        toast('Moved to ' + target);
+      });
+  });
 }
 
 /* ---------- tally and copy ---------- */
