@@ -423,8 +423,9 @@ function loadFolders() {
 function drawFolders() {
   var f = el('folders');
   f.innerHTML = '';
+  el('add').textContent = brand === INBOX ? '+ Add content' : '+ Add in New';
   if (brand === INBOX) {
-    el('hint').textContent = 'Drop anything here, sort it later';
+    el('hint').textContent = 'Everything starts here, then gets filed';
     return;
   }
   folders.forEach(function (fo) {
@@ -498,8 +499,19 @@ function loadItems() {
 
 /* ---------- uploads ---------- */
 el('add').addEventListener('click', function () {
-  if (!folderId) { toast('Make a folder first'); return; }
-  el('picker').click();
+  if (brand === INBOX) {
+    if (!folderId) { toast('One moment, setting up New'); return; }
+    el('picker').click();
+    return;
+  }
+  /* new content always lands in New, then gets filed from there */
+  brand = INBOX;
+  try { localStorage.setItem('ab:brand', brand); } catch (e) {}
+  drawTabs();
+  loadFolders();
+  toast('New content goes here first');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(function () { el('picker').click(); }, 450);
 });
 
 var VID = /\.(mov|mp4|m4v|webm|avi|mkv|3gp)$/i;
@@ -545,9 +557,7 @@ function openSheet() {
   var rows = el('rows');
   rows.innerHTML = '';
   var inbox = brand === INBOX;
-  el('sheet').querySelector('.sub').textContent = inbox
-    ? 'Which brand is each one for?'
-    : 'Set the brand and the day for each one';
+  el('sheet').querySelector('.sub').textContent = 'Which brand is each one for?';
   pending.forEach(function (job, i) {
     job.brand = inbox ? BRANDS[0].name : brand;
     job.day = inbox ? null : DAYS[i % 7];
