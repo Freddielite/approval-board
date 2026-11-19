@@ -631,8 +631,10 @@ function makeItem(job, fid, tick) {
     }).select().single();
   }).then(function (r) {
     if (r.error) throw r.error;
-    if (job.kind === 'video' && job.files[0] && wantsProxy(job.files[0])) {
-      queueProxy(r.data.id, fid, job.files[0], paths);
+    if (job.kind === 'video' && job.files[0]) {
+      return wantsProxy(job.files[0]).then(function (yes) {
+        if (yes) queueProxy(r.data.id, fid, job.files[0], paths);
+      });
     }
   });
 }
@@ -707,9 +709,29 @@ function work(label, frac) {
   }
 }
 
-/* an iPhone clip, or any big one, gets a 480p copy for watching */
+/* only a file the browser cannot play, or a very big one, is worth converting */
 function wantsProxy(file) {
-  return /\.mov$/i.test(file.name) || file.size > 25 * 1024 * 1024;
+  if (/\.mov$/i.test(file.name)) return Promise.resolve(true);
+  if (file.size < 60 * 1024 * 1024) return Promise.resolve(false);
+  return playable(file);
+}
+
+/* ask the browser directly instead of guessing from the name */
+function playable(file) {
+  return new Promise(function (res) {
+    var v = document.createElement('video');
+    var url = URL.createObjectURL(file);
+    var settled = false;
+    function done(ok) {
+      if (settled) return;
+      settled = true; URL.revokeObjectURL(url); res(!ok);
+    }
+    v.preload = 'metadata';
+    v.onloadedmetadata = function () { done(true); };
+    v.onerror = function () { done(false); };
+    setTimeout(function () { done(true); }, 4000);
+    v.src = url;
+  });
 }
 
 function queueProxy(itemId, fid, file, paths) {
@@ -782,7 +804,13 @@ function runQueue() {
     }).then(function () { loadItems(); });
   }).catch(function (err) {
     console.error(err);
-    toast('Conversion failed. The original is still there.');
+    var why = (err && (err.message || err.name)) || 'unknown reason';
+    if (/load failed|Failed to fetch|NetworkError/i.test(why)) {
+      why = 'could not download the converter';
+    } else if (/memory|allocat/i.test(why)) {
+      why = 'the phone ran out of memory';
+    }
+    toast('Could not make a preview (' + why + '). The video itself is fine and already saved.');
   }).then(function () {
     working = false;
     if (queue.length) runQueue(); else work(false);
@@ -794,7 +822,7 @@ function unfinished() {
   return items.filter(function (it) {
     if (it.kind !== 'video' || !it.paths || !it.paths[0]) return false;
     if (queue.some(function (q) { return q.id === it.id; })) return false;
-    return /\.mov$/i.test(it.paths[0]) || !it.preview;
+    return /\.mov$/i.test(it.paths[0]);
   });
 }
 
