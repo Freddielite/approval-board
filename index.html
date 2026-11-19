@@ -67,6 +67,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700}
 .flag{background:rgba(232,163,23,.14);color:var(--warn);font-size:12px;padding:8px 12px}
 .body{padding:16px}
+.tag{display:inline-block;background:linear-gradient(135deg,var(--g1),var(--g2));
+ color:#120B06;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+ padding:5px 11px;border-radius:999px;margin:0 8px 9px 0}
 .dayset{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;
  padding:6px 12px;font-size:11px;font-weight:700;letter-spacing:.08em;margin-bottom:9px;
  text-transform:uppercase;color:var(--ink)}
@@ -533,8 +536,6 @@ el('picker').addEventListener('change', function (e) {
         .map(function (x) { return x.f; }) });
   });
 
-  if (brand === INBOX) { send(pending.map(function (j) {
-    j.brand = INBOX; j.day = null; return j; })); pending = []; return; }
   openSheet();
 });
 
@@ -543,16 +544,21 @@ var pending = [];
 function openSheet() {
   var rows = el('rows');
   rows.innerHTML = '';
+  var inbox = brand === INBOX;
+  el('sheet').querySelector('.sub').textContent = inbox
+    ? 'Which brand is each one for?'
+    : 'Set the brand and the day for each one';
   pending.forEach(function (job, i) {
-    job.brand = brand;
-    job.day = DAYS[i % 7];
+    job.brand = inbox ? BRANDS[0].name : brand;
+    job.day = inbox ? null : DAYS[i % 7];
     var r = document.createElement('div');
     r.className = 'rw';
     r.innerHTML = '<b>' + esc(job.title) + '</b><small>'
       + (job.kind === 'video' ? 'Video' : job.files.length + ' slides')
       + '</small><div class="picks">'
       + '<button type="button" class="pick b">' + esc(job.brand) + '</button>'
-      + '<button type="button" class="pick d">' + esc(job.day) + '</button></div>';
+      + '<button type="button" class="pick d">' + esc(job.day || 'No day')
+      + '</button></div>';
     var bb = r.querySelector('.b'), dd = r.querySelector('.d');
     bb.addEventListener('click', function () {
       choose('Brand', BRANDS.map(function (x) {
@@ -595,7 +601,10 @@ function send(jobs) {
   var chain = Promise.resolve();
   jobs.forEach(function (job) {
     chain = chain.then(function () {
-      return folderFor(job.brand, folderName).then(function (fid) {
+      var home = (brand === INBOX)
+        ? folderFor(INBOX, INBOX)
+        : folderFor(job.brand, folderName);
+      return home.then(function (fid) {
         return makeItem(job, fid, function () {
           done++; busy('Uploading ' + done + ' of ' + total + '\u2026');
         });
@@ -607,7 +616,8 @@ function send(jobs) {
     return n + j.files.filter(function (f) { return /\.mov$/i.test(f.name); }).length; }, 0);
   chain.then(function () {
     busy(false); loadFolders();
-    var elsewhere = jobs.filter(function (j) { return j.brand !== brand; }).length;
+    var elsewhere = (brand === INBOX) ? 0
+      : jobs.filter(function (j) { return j.brand !== brand; }).length;
     if (movs) toast(movs + ' .MOV uploaded. Preview works on iPhone only.');
     else if (elsewhere) toast(jobs.length + ' uploaded \u00b7 ' + elsewhere + ' sent to other brands');
     else toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
@@ -644,7 +654,8 @@ function makeItem(job, fid, tick) {
   });
   return chain.then(function () {
     return db.from('items').insert({
-      folder_id: fid, kind: job.kind, paths: paths, title: job.title, day: job.day || null
+      folder_id: fid, kind: job.kind, paths: paths, title: job.title,
+      day: job.day || null, tag: job.brand || null
     }).select().single();
   }).then(function (r) {
     if (r.error) throw r.error;
@@ -883,7 +894,16 @@ function patch(id, fields) {
   });
 }
 
+function brandColour(name, i) {
+  var b = BRANDS.filter(function (x) { return x.name === name; })[0];
+  return b ? (i ? b.c2 : b.c1) : '#6E56CF';
+}
+
 function byDay(a, b) {
+  if (brand === INBOX) {
+    var ta = a.tag || 'zz', tb = b.tag || 'zz';
+    if (ta !== tb) return ta.localeCompare(tb);
+  }
   var ia = a.day ? DAYS.indexOf(a.day) : 99, ib = b.day ? DAYS.indexOf(b.day) : 99;
   if (ia !== ib) return ia - ib;
   return String(a.created_at).localeCompare(String(b.created_at));
@@ -923,6 +943,10 @@ function drawItems() {
 
     card.innerHTML = media
       + '<div class="body">'
+      + (brand === INBOX && it.tag
+          ? '<span class="tag" style="--g1:' + brandColour(it.tag, 0) + ';--g2:'
+            + brandColour(it.tag, 1) + '">' + esc(it.tag) + '</span>'
+          : '')
       + '<button type="button" class="dayset">' + esc(it.day || 'No day') + '</button>'
       + '<input class="title" value="' + esc(it.title) + '">'
       + '<p class="fmt">' + (it.kind === 'video' ? 'Video' : paths.length + ' slides') + '</p>'
@@ -1039,16 +1063,31 @@ function drawItems() {
 
 /* filing something from the inbox into a brand's week */
 function moveItem(it) {
-  choose('Which brand?', BRANDS.map(function (b) {
-    return { label: b.name, value: b.name }; }), null).then(function (target) {
+  var first = it.tag
+    ? Promise.resolve(it.tag)
+    : choose('Which brand?', BRANDS.map(function (b) {
+        return { label: b.name, value: b.name }; }), null);
+  first.then(function (target) {
     if (!target) return;
-    return db.from('folders').select('*').eq('brand', target)
-      .order('created_at', { ascending: false }).then(function (r) {
+    return pickFolder(it, target);
+  }).catch(function (e) { toast(String(e.message || e)); });
+}
+
+function pickFolder(it, target) {
+  return db.from('folders').select('*').eq('brand', target)
+    .order('created_at', { ascending: false }).then(function (r) {
       var list = (r.data || []).map(function (f) {
         return { label: f.name, value: f.id }; });
       list.push({ label: '+ New folder', value: '__new__' });
+      list.push({ label: 'Different brand\u2026', value: '__brand__' });
       return choose('Which folder in ' + target + '?', list, null).then(function (pick) {
         if (!pick) return;
+        if (pick === '__brand__') {
+          return choose('Which brand?', BRANDS.map(function (b) {
+            return { label: b.name, value: b.name }; }), target).then(function (other) {
+            if (other) return pickFolder(it, other);
+          });
+        }
         if (pick !== '__new__') return finishMove(it, pick, target);
         return ask('New folder in ' + target, 'Name it for the week', 'Week 1', 'Create')
           .then(function (name) {
@@ -1061,7 +1100,6 @@ function moveItem(it) {
           });
       });
     });
-  }).catch(function (e) { toast(String(e.message || e)); });
 }
 
 function finishMove(it, fid, target) {
@@ -1069,7 +1107,8 @@ function finishMove(it, fid, target) {
     return { label: d, value: d }; }));
   return choose('Day to post', opts, it.day || '').then(function (day) {
     busy(true);
-    return db.from('items').update({ folder_id: fid, day: day || null }).eq('id', it.id)
+    return db.from('items').update({ folder_id: fid, day: day || null, tag: target })
+      .eq('id', it.id)
       .then(function (r) {
         busy(false);
         if (r.error) { toast(r.error.message); return; }
