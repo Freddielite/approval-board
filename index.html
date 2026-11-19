@@ -67,6 +67,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700}
 .flag{background:rgba(232,163,23,.14);color:var(--warn);font-size:12px;padding:8px 12px}
 .body{padding:16px}
+.dayset{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;
+ padding:5px 10px;font-size:11px;font-weight:700;letter-spacing:.08em;margin-bottom:9px;
+ text-transform:uppercase}
 .title{width:100%;background:transparent;border:none;font-size:17px;font-weight:700;
  letter-spacing:-.01em;padding:0}
 .fmt{font-size:13px;color:var(--mut);margin-top:3px}
@@ -112,6 +115,27 @@ body.hideposted .card[data-posted="1"]{display:none}
 .gate input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);
  border-radius:12px;padding:14px;text-align:center;letter-spacing:.3em;margin-bottom:12px}
 .gate button{width:100%}
+.sheet{position:fixed;inset:0;z-index:48;background:rgba(0,0,0,.6);display:none;
+ align-items:flex-end;justify-content:center}
+.sheet.on{display:flex}
+.panel{width:100%;max-width:560px;max-height:86vh;display:flex;flex-direction:column;
+ background:var(--card);border:1px solid var(--line);border-radius:20px 20px 0 0;
+ padding:20px 16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+@media(min-width:620px){.sheet{align-items:center}
+ .panel{border-radius:20px;max-height:80vh}}
+.panel h3{font-size:18px}
+.panel .sub{font-size:13px;color:var(--mut);margin-top:3px}
+.rows{overflow-y:auto;margin:14px 0;flex:1}
+.rw{border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:10px}
+.rw b{display:block;font-size:14px;font-weight:700;word-break:break-word}
+.rw small{color:var(--mut);font-size:12px}
+.rw .picks{display:flex;gap:8px;margin-top:10px}
+.rw select{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);
+ border-radius:10px;padding:10px;font-size:13px}
+.sheetfoot{display:flex;gap:10px}
+.sheetfoot button{flex:1}
+.day{display:inline-block;background:rgba(255,255,255,.1);color:var(--ink);font-size:11px;
+ font-weight:700;letter-spacing:.1em;padding:4px 9px;border-radius:999px;margin-bottom:8px}
 .busy{position:fixed;inset:0;z-index:45;background:rgba(14,11,9,.7);display:none;
  align-items:center;justify-content:center;font-size:14px}
 .busy.on{display:flex}
@@ -146,6 +170,15 @@ body.hideposted .card[data-posted="1"]{display:none}
 
 <div class="foot"><span id="tally"></span>
   <button class="solid" id="copy">Copy decisions</button></div>
+<div class="sheet" id="sheet"><div class="panel">
+  <h3>Before uploading</h3>
+  <p class="sub">Set the brand and the day for each one</p>
+  <div class="rows" id="rows"></div>
+  <div class="sheetfoot">
+    <button class="ghost" id="cancel">Cancel</button>
+    <button class="solid" id="go">Upload</button>
+  </div>
+</div></div>
 <div class="toast" id="toast"></div>
 <div class="busy" id="busy">Working…</div>
 
@@ -161,6 +194,7 @@ var BRANDS = [
   { name: 'Open Delta', c1: '#12A45B', c2: '#6BE3A4' }
 ];
 
+var DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 var db = null, brand = BRANDS[0].name, folders = [], folderId = null, items = [];
 var el = function (id) { return document.getElementById(id); };
 
@@ -306,7 +340,7 @@ function loadItems() {
     .order('created_at', { ascending: true })
     .then(function (r) {
       if (r.error) { toast(r.error.message); return; }
-      items = r.data || [];
+      items = (r.data || []).sort(byDay);
       el('sub').textContent = brand;
       drawItems();
     });
@@ -335,47 +369,109 @@ el('picker').addEventListener('change', function (e) {
   e.target.value = '';
   if (!files.length) return;
 
-  var jobs = [];
-  files.filter(isVideo)
-    .forEach(function (v) { jobs.push({ kind: 'video', title: stem(v.name), files: [v] }); });
-
-  var buckets = {}, order = [];
-  files.filter(isImage)
-    .forEach(function (img) {
-      var g = groupOf(img.name);
-      if (!buckets[g.key]) { buckets[g.key] = []; order.push(g.key); }
-      buckets[g.key].push({ f: img, n: g.n });
-    });
-  order.forEach(function (k) {
-    var set = buckets[k].sort(function (a, b) { return a.n - b.n; })
-      .map(function (x) { return x.f; });
-    jobs.push({ kind: 'carousel', title: k, files: set });
+  pending = [];
+  files.filter(isVideo).forEach(function (v) {
+    pending.push({ kind: 'video', title: stem(v.name), files: [v] });
   });
 
-  var total = files.length, done = 0;
+  var buckets = {}, order = [];
+  files.filter(isImage).forEach(function (img) {
+    var g = groupOf(img.name);
+    if (!buckets[g.key]) { buckets[g.key] = []; order.push(g.key); }
+    buckets[g.key].push({ f: img, n: g.n });
+  });
+  order.forEach(function (k) {
+    pending.push({ kind: 'carousel', title: k,
+      files: buckets[k].sort(function (a, b) { return a.n - b.n; })
+        .map(function (x) { return x.f; }) });
+  });
+
+  openSheet();
+});
+
+var pending = [];
+
+function openSheet() {
+  var rows = el('rows');
+  rows.innerHTML = '';
+  pending.forEach(function (job, i) {
+    job.brand = brand;
+    job.day = DAYS[i % 7];
+    var r = document.createElement('div');
+    r.className = 'rw';
+    r.innerHTML = '<b>' + esc(job.title) + '</b><small>'
+      + (job.kind === 'video' ? 'Video' : job.files.length + ' slides')
+      + '</small><div class="picks">'
+      + '<select class="b">' + BRANDS.map(function (x) {
+          return '<option' + (x.name === brand ? ' selected' : '') + '>' + esc(x.name)
+            + '</option>'; }).join('') + '</select>'
+      + '<select class="d"><option value="">No day</option>' + DAYS.map(function (d, n) {
+          return '<option' + (n === i % 7 ? ' selected' : '') + '>' + d + '</option>';
+        }).join('') + '</select></div>';
+    r.querySelector('.b').addEventListener('change', function (ev) {
+      job.brand = ev.target.value; });
+    r.querySelector('.d').addEventListener('change', function (ev) {
+      job.day = ev.target.value || null; });
+    rows.appendChild(r);
+  });
+  el('sheet').classList.add('on');
+}
+
+el('cancel').addEventListener('click', function () {
+  pending = []; el('sheet').classList.remove('on');
+});
+
+el('go').addEventListener('click', function () {
+  el('sheet').classList.remove('on');
+  var jobs = pending.slice();
+  pending = [];
+  if (!jobs.length) return;
+  var folderName = (folders.filter(function (f) { return f.id === folderId; })[0] || {}).name;
+  var total = jobs.reduce(function (n, j) { return n + j.files.length; }, 0), done = 0;
   busy('Uploading 0 of ' + total + '\u2026');
+
   var chain = Promise.resolve();
   jobs.forEach(function (job) {
     chain = chain.then(function () {
-      return makeItem(job, function () {
-        done++; busy('Uploading ' + done + ' of ' + total + '\u2026');
+      return folderFor(job.brand, folderName).then(function (fid) {
+        return makeItem(job, fid, function () {
+          done++; busy('Uploading ' + done + ' of ' + total + '\u2026');
+        });
       });
     });
   });
-  var movs = files.filter(function (f) { return /\.mov$/i.test(f.name); }).length;
+
+  var movs = jobs.reduce(function (n, j) {
+    return n + j.files.filter(function (f) { return /\.mov$/i.test(f.name); }).length; }, 0);
   chain.then(function () {
-    busy(false); loadItems();
+    busy(false); loadFolders();
+    var elsewhere = jobs.filter(function (j) { return j.brand !== brand; }).length;
     if (movs) toast(movs + ' .MOV uploaded \u2014 may not play on Android. Convert to MP4.');
+    else if (elsewhere) toast(jobs.length + ' uploaded \u00b7 ' + elsewhere + ' sent to other brands');
     else toast(jobs.length === 1 ? 'Uploaded' : jobs.length + ' items uploaded');
   }).catch(function (err) { busy(false); toast(String(err.message || err)); });
 });
 
-function makeItem(job, tick) {
+/* each brand keeps its own copy of a week, made on demand */
+function folderFor(targetBrand, name) {
+  if (targetBrand === brand && folderId) return Promise.resolve(folderId);
+  return db.from('folders').select('*').eq('brand', targetBrand).eq('name', name)
+    .then(function (r) {
+      if (r.data && r.data.length) return r.data[0].id;
+      return db.from('folders').insert({ brand: targetBrand, name: name }).select().single()
+        .then(function (ins) {
+          if (ins.error) throw ins.error;
+          return ins.data.id;
+        });
+    });
+}
+
+function makeItem(job, fid, tick) {
   var paths = [];
   var chain = Promise.resolve();
   job.files.forEach(function (f) {
     chain = chain.then(function () {
-      var path = folderId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
+      var path = fid + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7)
         + '-' + f.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
       return db.storage.from(BUCKET).upload(path, f, { contentType: f.type })
         .then(function (r) {
@@ -386,7 +482,7 @@ function makeItem(job, tick) {
   });
   return chain.then(function () {
     return db.from('items').insert({
-      folder_id: folderId, kind: job.kind, paths: paths, title: job.title
+      folder_id: fid, kind: job.kind, paths: paths, title: job.title, day: job.day || null
     });
   }).then(function (r) { if (r.error) throw r.error; });
 }
@@ -396,6 +492,12 @@ function patch(id, fields) {
   return db.from('items').update(fields).eq('id', id).then(function (r) {
     if (r.error) toast(r.error.message);
   });
+}
+
+function byDay(a, b) {
+  var ia = a.day ? DAYS.indexOf(a.day) : 99, ib = b.day ? DAYS.indexOf(b.day) : 99;
+  if (ia !== ib) return ia - ib;
+  return String(a.created_at).localeCompare(String(b.created_at));
 }
 
 function drawItems() {
@@ -428,6 +530,10 @@ function drawItems() {
 
     card.innerHTML = media
       + '<div class="body">'
+      + '<select class="dayset"><option value="">No day</option>'
+      + DAYS.map(function (d) {
+          return '<option' + (it.day === d ? ' selected' : '') + '>' + d + '</option>';
+        }).join('') + '</select>'
       + '<input class="title" value="' + esc(it.title) + '">'
       + '<p class="fmt">' + (it.kind === 'video' ? 'Video' : paths.length + ' slides') + '</p>'
       + '<details class="cap"><summary>Caption</summary>'
@@ -455,6 +561,13 @@ function drawItems() {
         });
         patch(it.id, { verdict: v }); tally();
       });
+    });
+
+    var dsel = card.querySelector('.dayset');
+    dsel.addEventListener('change', function () {
+      it.day = dsel.value || null;
+      patch(it.id, { day: it.day });
+      items.sort(byDay); drawItems();
     });
 
     var t = card.querySelector('.title');
@@ -552,8 +665,8 @@ el('copy').addEventListener('click', function () {
   var lines = [brand + (folder ? ' \u2014 ' + folder.name : ''), ''];
   items.forEach(function (it) {
     var v = it.posted ? 'POSTED' : (it.verdict ? it.verdict.toUpperCase() : 'NOT DECIDED');
-    lines.push('\u2022 ' + (it.title || 'Untitled') + ' \u2014 ' + v
-      + (it.note ? ' (' + it.note + ')' : ''));
+    lines.push('\u2022 ' + (it.day ? it.day + ': ' : '') + (it.title || 'Untitled')
+      + ' \u2014 ' + v + (it.note ? ' (' + it.note + ')' : ''));
   });
   copy(lines.join('\n'), 'Decisions copied');
 });
