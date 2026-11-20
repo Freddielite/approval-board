@@ -93,45 +93,46 @@ button:active{transform:scale(.96)}
 .ghead h2{font-size:36px;line-height:1;color:var(--hc,var(--ink))}
 .ghead span{font-size:14px;font-weight:600;color:var(--mut)}
 .cell.cont .ghead h2{opacity:.4}
-.card{position:relative;border-radius:20px;overflow:hidden;background:var(--paper);color:var(--pink);
- transition:background-color .35s,opacity .35s}
+.card{position:relative;border-radius:20px;overflow:hidden;color:var(--ink);--bc:#A39B94;
+ background:#18130F;background:color-mix(in srgb,var(--bc) 11%,#15110E);
+ box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);transition:background-color .35s,opacity .35s}
 .media{background:#000;position:relative}
 .media video{width:100%;display:block;max-height:74vh;object-fit:contain;background:#000}
 .strip2{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
 .strip2::-webkit-scrollbar{display:none}
 .strip2 img{width:100%;flex:0 0 100%;scroll-snap-align:center;display:block}
-.counter{position:absolute;right:12px;bottom:12px;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;
+.counter{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;
  padding:5px 10px;font-size:12px;font-weight:700}
 .flag{font-size:12px;font-weight:600;padding:8px 14px;background:rgba(242,168,30,.16);color:#FFD27A}
 .flag.ok{background:rgba(53,214,131,.16);color:#8FF0BD}
-.slip{position:relative;border-top:2px dashed rgba(26,20,18,.22);padding:18px;display:flex;flex-direction:column;gap:14px}
-.meta{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--pmut)}
+.slip{position:relative;border-top:2px dashed rgba(255,255,255,.16);padding:18px;display:flex;flex-direction:column;gap:14px}
+.meta{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--mut);padding-right:120px;white-space:nowrap;min-width:0}
 .bdot{width:9px;height:9px;border-radius:50%;background:var(--c)}
 .title{width:100%;background:transparent;border:none;border-radius:6px;font-size:21px;font-weight:700;
- letter-spacing:-.015em;line-height:1.15;padding:0 130px 0 0;color:var(--pink)}
-.title:focus{outline:2px solid rgba(26,20,18,.3);outline-offset:3px}
+ letter-spacing:-.015em;line-height:1.15;padding:0;color:var(--ink);text-overflow:ellipsis}
+.title:focus{outline:2px solid rgba(255,255,255,.3);outline-offset:3px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{height:36px;padding:0 13px;border-radius:10px;font-size:13px;font-weight:600;
- border:1.5px dashed rgba(26,20,18,.3);background:transparent;color:var(--pink)}
-.chips button.set{border:none;background:var(--pink);color:var(--paper)}
-.chips button.has{border-style:solid;border-color:rgba(26,20,18,.18)}
-.verdict{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:14px;background:rgba(26,20,18,.07)}
-.verdict button{height:46px;border-radius:11px;border:none;background:transparent;color:var(--pink);font-size:14px;font-weight:600}
+ border:1.5px dashed rgba(255,255,255,.25);background:transparent;color:var(--ink)}
+.chips button.set{border:none;background:var(--ink);color:var(--bg)}
+.chips button.has{border-style:solid;border-color:rgba(255,255,255,.18)}
+.verdict{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06)}
+.verdict button{height:46px;border-radius:11px;border:none;background:transparent;color:#D8D0C9;font-size:14px;font-weight:600}
 .verdict button[aria-pressed=true]{font-weight:700}
-.verdict button[aria-pressed=true][data-v=approved]{background:var(--okInk);color:#fff}
-.verdict button[aria-pressed=true][data-v=changes]{background:#F0A419;color:#2B1A00}
-.verdict button[aria-pressed=true][data-v=rejected]{background:var(--noInk);color:#fff}
-.notebox{display:none;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#9A5F00}
+.verdict button[aria-pressed=true][data-v=approved]{background:#22B465;color:#04210F}
+.verdict button[aria-pressed=true][data-v=changes]{background:var(--warn);color:#2B1A00}
+.verdict button[aria-pressed=true][data-v=rejected]{background:#E0453C;color:#fff}
+.notebox{display:none;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#FFC35C}
 .card[data-verdict=changes] .notebox,.card[data-verdict=rejected] .notebox,.card.has-note .notebox{display:flex;animation:up .35s var(--spring) both}
-.card[data-verdict=rejected] .notebox{color:#A61C15}
-.comment{resize:vertical;padding:10px 12px;border-radius:12px;border:1.5px solid rgba(26,20,18,.2);background:#fff;
- color:var(--pink);font-size:14px;line-height:1.45;min-height:64px}
+.card[data-verdict=rejected] .notebox{color:#FF8A80}
+.comment{resize:vertical;padding:10px 12px;border-radius:12px;border:1.5px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);
+ color:var(--ink);font-size:14px;line-height:1.45;min-height:64px}
 .actions{display:flex;gap:6px}
-.actions button{height:46px;border-radius:12px;border:1.5px solid rgba(26,20,18,.18);background:transparent;
- color:var(--pink);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+.actions button{height:46px;border-radius:12px;border:1.5px solid rgba(255,255,255,.16);background:transparent;
+ color:var(--ink);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
 .actions .grow{flex:1;min-width:0;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .actions .icon{width:46px;flex:0 0 46px}
-.card[data-verdict=approved] .filebtn{border:none;background:var(--pink);color:var(--paper);font-weight:700}
+.card[data-verdict=approved] .filebtn{border:none;background:var(--ink);color:var(--bg);font-weight:700}
 .postedrow{display:none;align-items:center;gap:14px}
 .postedtag{font:400 20px/1 Anton,Impact,sans-serif;color:var(--ok);padding:5px 10px;border:2px solid var(--ok);
  border-radius:7px;transform:rotate(-4deg)}
@@ -147,18 +148,19 @@ button:active{transform:scale(.96)}
 body.hideposted .card[data-posted="1"]{display:none}
 
 /* the rubber stamp, now inked on paper */
-.stamp{position:absolute;top:14px;right:16px;z-index:4;pointer-events:none;transform:rotate(var(--r,-8deg));opacity:.86}
+.stamp{position:absolute;top:-34px;right:14px;z-index:4;pointer-events:none;transform:rotate(var(--r,-8deg));opacity:.94;
+ filter:drop-shadow(0 1px 0 rgba(0,0,0,.55))}
 .stamp b{display:block;padding:3px;border:2.5px solid currentColor;border-radius:9px;
  -webkit-mask-image:var(--inkmask);mask-image:var(--inkmask);-webkit-mask-size:280% 280%;mask-size:280% 280%;
  -webkit-mask-position:var(--mx,30%) var(--my,60%);mask-position:var(--mx,30%) var(--my,60%)}
 .stamp i{display:block;font:400 29px/1 Anton,Impact,"Arial Black",sans-serif;font-style:normal;letter-spacing:.07em;
  text-transform:uppercase;padding:7px 13px 6px;border:4px solid currentColor;border-radius:6px}
-.stamp[data-v=approved]{color:var(--okInk)}
-.stamp[data-v=changes]{color:var(--warnInk)}
-.stamp[data-v=rejected]{color:var(--noInk)}
+.stamp[data-v=approved]{color:#35D683}
+.stamp[data-v=changes]{color:#F5B731}
+.stamp[data-v=rejected]{color:#FF5A4F}
 .stamp.slam{animation:slam .42s cubic-bezier(.3,.9,.35,1.1) both}
 @keyframes slam{0%{transform:translateY(-22px) rotate(calc(var(--r,-8deg) - 10deg)) scale(2.6);opacity:0}
- 60%{transform:rotate(calc(var(--r,-8deg) + 1.5deg)) scale(.9);opacity:.95}100%{transform:rotate(var(--r,-8deg)) scale(1);opacity:.86}}
+ 60%{transform:rotate(calc(var(--r,-8deg) + 1.5deg)) scale(.9);opacity:.95}100%{transform:rotate(var(--r,-8deg)) scale(1);opacity:.94}}
 .stamp.lift{animation:lift .26s ease-in both}
 @keyframes lift{to{transform:translateY(-26px) rotate(calc(var(--r,-8deg) - 5deg)) scale(1.18);opacity:0}}
 .splat{position:absolute;z-index:3;pointer-events:none;width:130px;height:130px;margin:-65px 0 0 -65px;
@@ -166,10 +168,10 @@ body.hideposted .card[data-posted="1"]{display:none}
 @keyframes splat{0%{transform:scale(.3);opacity:.6}100%{transform:scale(1.9);opacity:0}}
 
 /* placeholders while loading */
-.skel{border-radius:20px;overflow:hidden;background:var(--paper)}
-.skel i{display:block;background:linear-gradient(90deg,rgba(26,20,18,.06) 30%,rgba(26,20,18,.13) 50%,rgba(26,20,18,.06) 70%);
+.skel{border-radius:20px;overflow:hidden;background:#1A1512;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.skel i{display:block;background:linear-gradient(90deg,rgba(255,255,255,.04) 30%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.04) 70%);
  background-size:250% 100%;animation:shimmer 1.3s linear infinite}
-.skel .m{aspect-ratio:4/5;max-height:44vh;background-color:#1A1716;
+.skel .m{aspect-ratio:4/5;max-height:44vh;background-color:#120F0D;
  background-image:linear-gradient(90deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.03) 70%)}
 .skel .l{height:18px;margin:20px 18px 10px;border-radius:6px;width:58%}
 .skel .s{height:12px;margin:0 18px;border-radius:6px;width:30%}
@@ -1610,6 +1612,7 @@ function drawItems() {
     /* inside a brand the card belongs to that brand, even if it was filed before tags existed */
     var shownBrand = brand === INBOX ? it.tag : brand;
     var th = THEME[shownBrand];
+    if (th) card.style.setProperty('--bc', th.dot);
     if (it.note) card.classList.add('has-note');
     card.innerHTML = media
       + '<div class="slip">'
