@@ -379,11 +379,56 @@ el('code').addEventListener('keydown', function (e) {
 });
 
 /* ---------- data ---------- */
+
+/* what the board expects to find; anything missing is added on load */
+var SCHEMA = [
+  ['items', 'day', 'text'],
+  ['items', 'tag', 'text'],
+  ['items', 'preview', 'text']
+];
+
+function syncSchema() {
+  return db.from('items').select('*').limit(1).then(function (r) {
+    var row = (r.data && r.data[0]) || null;
+    var missing = SCHEMA.filter(function (c) {
+      return row ? !(c[1] in row) : false;
+    });
+    if (row && !missing.length) return;
+    /* with no rows to inspect, ask for them all; add column if not exists is harmless */
+    var want = row ? missing : SCHEMA;
+    var chain = Promise.resolve();
+    want.forEach(function (c) {
+      chain = chain.then(function () {
+        return db.rpc('add_board_column', { tbl: c[0], col: c[1], kind: c[2] })
+          .then(function (res) {
+            if (res.error) console.warn('column ' + c[1] + ': ' + res.error.message);
+          });
+      });
+    });
+    return chain;
+  }).catch(function (e) { console.warn('schema check skipped', e); });
+}
+
+/* someone else's change shows up here without a refresh */
+function listen() {
+  try {
+    db.channel('board')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' },
+        function () { if (!working) loadItems(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' },
+        function () { if (!working) loadFolders(); })
+      .subscribe();
+  } catch (e) { console.warn('live updates unavailable', e); }
+}
+
 function start() {
   if (!window.supabase) { el('sub').textContent = 'Could not load. Check connection.'; return; }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   drawTabs();
-  loadFolders();
+  syncSchema().then(function () {
+    loadFolders();
+    listen();
+  });
 }
 
 function drawTabs() {
@@ -934,6 +979,11 @@ function byDay(a, b) {
 
 function drawItems() {
   var g = el('grid');
+  var typing = document.activeElement;
+  if (typing && g.contains(typing) &&
+      (typing.tagName === 'TEXTAREA' || typing.tagName === 'INPUT')) {
+    return;   /* someone is mid sentence, leave the page alone */
+  }
   g.innerHTML = '';
   if (!folderId) { g.innerHTML = '<p class="empty">No folders yet for ' + esc(brand) + '.</p>'; tally(); return; }
   if (!items.length) { g.innerHTML = '<p class="empty">Nothing in this folder yet.</p>'; tally(); return; }
