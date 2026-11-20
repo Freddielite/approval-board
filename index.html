@@ -54,7 +54,7 @@ button:active{transform:scale(.96)}
 
 /* the coloured band */
 .band{transition:background-color .6s var(--drift),color .6s var(--drift)}
-.bandin{max-width:1360px;margin:0 auto;padding:34px 32px 36px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px 48px}
+.bandin{max-width:1840px;margin:0 auto;padding:34px 32px 36px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px 48px}
 .bandname{flex:1 1 420px;min-width:0}
 .kick{font-size:15px;font-weight:600;opacity:.85;margin-bottom:10px}
 .bandname h1{font-size:clamp(54px,9vw,128px);line-height:.88;overflow-wrap:anywhere}
@@ -66,7 +66,7 @@ button:active{transform:scale(.96)}
  font-size:15px;font-weight:700;align-self:center}
 
 /* toolbar */
-.wrap{max-width:1360px;margin:0 auto;padding:26px 32px 0}
+.wrap{max-width:1840px;margin:0 auto;padding:26px 32px 0}
 .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:30px}
 .hint{flex:1 1 260px;font-size:15px;color:var(--mut)}
 .folders{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 280px}
@@ -84,11 +84,15 @@ button:active{transform:scale(.96)}
 .switch[aria-checked=true] .knob{transform:translateX(14px)}
 
 /* groups and cards */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:22px;align-items:start}
-.ghead{grid-column:1/-1;display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px;margin:18px 0 -4px}
-.grid>.ghead:first-child{margin-top:0}
-.ghead h2{font-size:40px;line-height:1;color:var(--c,var(--ink))}
-.ghead span{font-size:15px;font-weight:600;color:var(--mut)}
+.grid{display:flex;flex-wrap:wrap;gap:30px 22px;align-items:flex-start}
+.cell,.grid>.skel{flex:0 1 380px;min-width:0;max-width:100%}
+.ghead{position:relative;height:86px;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;
+ padding-bottom:22px;white-space:nowrap}
+.ghead::after{content:"";position:absolute;left:0;right:-22px;bottom:9px;height:3px;border-radius:2px;background:var(--c,var(--mut))}
+.cell.last .ghead::after{right:0}
+.ghead h2{font-size:36px;line-height:1;color:var(--hc,var(--ink))}
+.ghead span{font-size:14px;font-weight:600;color:var(--mut)}
+.cell.cont .ghead h2{opacity:.4}
 .card{position:relative;border-radius:20px;overflow:hidden;background:var(--paper);color:var(--pink);
  transition:background-color .35s,opacity .35s}
 .media{background:#000;position:relative}
@@ -181,7 +185,7 @@ body.hideposted .card[data-posted="1"]{display:none}
 @keyframes gone{to{opacity:0;transform:scale(.95)}}
 
 /* empty states */
-.emptyst{grid-column:1/-1;padding:40px 0 30px;max-width:560px}
+.emptyst{flex:1 1 100%;padding:40px 0 30px;max-width:560px}
 .emptyst h2{font-size:64px;line-height:.95}
 .emptyst p{margin:14px 0 24px;font-size:16px;line-height:1.55;color:var(--mut)}
 
@@ -202,7 +206,7 @@ body.hideposted .card[data-posted="1"]{display:none}
 .dock .solid{white-space:nowrap;height:46px}
 
 /* floating bars */
-.resume{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;
+.resume{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;
  border:1.5px solid rgba(242,168,30,.45);background:rgba(242,168,30,.12)}
 .resume span{flex:1;font-size:14px;font-weight:600;color:#FFD27A}
 .work{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:28;
@@ -304,6 +308,9 @@ body.hideposted .card[data-posted="1"]{display:none}
  .stat b{font-size:42px}
  .wrap{padding:20px 16px 0}
  .ghead h2{font-size:32px}
+ .ghead::after,.cell.last .ghead::after{right:0}
+ .cell:not(.first):not(.cont) .ghead{height:16px;padding-bottom:0}
+ .cell:not(.first):not(.cont) .ghead::after{bottom:6px}
  .emptyst h2{font-size:48px}
  .dock{left:12px;right:12px;transform:none;padding-left:14px;gap:10px}
  .dockcounts{gap:4px 10px;font-size:13px}
@@ -1479,7 +1486,10 @@ function byDay(a, b) {
 
 function emptyState(g) {
   var t, p, label, act;
-  if (brand === INBOX) {
+  if (items.length && document.body.classList.contains('hideposted')) {
+    t = 'All posted'; p = 'Everything here has gone out. Posted items are hidden.'; label = 'Show posted';
+    act = function () { el('hidePosted').click(); };
+  } else if (brand === INBOX) {
     t = 'All clear'; p = 'Nothing is waiting. Add content to start the next round.'; label = 'Add content';
     act = function () { el('add').click(); };
   } else if (!folderId) {
@@ -1499,24 +1509,33 @@ function emptyState(g) {
 
 /* section headings: by brand in New, by day inside a brand's week */
 function groupKey(it) { return brand === INBOX ? (it.tag || '') : (it.day || ''); }
-function groupHead(key, list) {
-  var h = document.createElement('div');
-  h.className = 'ghead';
-  var n = list.length, title, colour = '';
+function groupInfo(key, list) {
+  var n = list.length;
   if (brand === INBOX) {
-    title = key ? 'For ' + key : 'No brand yet';
-    colour = key && THEME[key] ? THEME[key].dot : '#A39B94';
     var w = list.filter(function (x) { return !x.verdict; }).length;
-    var sub = n + (n === 1 ? ' item' : ' items') + (w ? ', ' + w + ' waiting' : ', all decided');
-  } else {
-    title = key || 'No day yet';
-    colour = key ? '' : '#A39B94';
-    var sub = n + (n === 1 ? ' item' : ' items');
+    var c = key && THEME[key] ? THEME[key].dot : '#A39B94';
+    return { title: key ? 'For ' + key : 'No brand yet', line: c, head: c,
+      sub: n + (n === 1 ? ' item' : ' items') + (w ? ', ' + w + ' waiting' : ', all decided') };
   }
-  if (colour) h.style.setProperty('--c', colour);
-  h.innerHTML = '<h2 class="disp">' + esc(title) + '</h2><span>' + esc(sub) + '</span>';
-  return h;
+  return { title: key || 'No day yet', line: key ? THEME[brand].dot : '#A39B94', head: key ? '' : '#A39B94',
+    sub: n + (n === 1 ? ' item' : ' items') };
 }
+
+/* when a group runs onto a new row, its first card there repeats the name faintly */
+function relabel() {
+  var prevTop = null;
+  el('grid').querySelectorAll('.cell').forEach(function (c) {
+    var top = c.offsetTop;
+    var cont = !c.classList.contains('first') && top !== prevTop && window.innerWidth > 600;
+    if (cont !== c.classList.contains('cont')) {
+      c.classList.toggle('cont', cont);
+      c.querySelector('.ghead').innerHTML = cont ? '<h2 class="disp">' + esc(c.dataset.title) + '</h2>' : '';
+    }
+    prevTop = top;
+  });
+}
+var relabelT = 0;
+window.addEventListener('resize', function () { clearTimeout(relabelT); relabelT = setTimeout(relabel, 120); });
 
 var drawnFor = '';   /* which tab and week the grid currently shows */
 function drawItems() {
@@ -1543,13 +1562,27 @@ function drawItems() {
   if (!folderId || !items.length) { emptyState(g); tally(); return; }
 
   drawResume();
-  var lastKey = null;
-  items.forEach(function (it) {
+  var hide = document.body.classList.contains('hideposted');
+  var list = hide ? items.filter(function (x) { return !x.posted; }) : items;
+  var lastKey = null, info = null, members = [], idx = 0;
+  list.forEach(function (it) {
     var key = groupKey(it);
-    if (key !== lastKey) {
-      lastKey = key;
-      g.appendChild(groupHead(key, items.filter(function (x) { return groupKey(x) === key; })));
+    var first = key !== lastKey;
+    if (first) {
+      lastKey = key; idx = 0;
+      members = list.filter(function (x) { return groupKey(x) === key; });
+      info = groupInfo(key, members);
     }
+    idx++;
+    var cell = document.createElement('div');
+    cell.className = 'cell' + (first ? ' first' : '') + (idx === members.length ? ' last' : '');
+    cell.dataset.title = info.title;
+    cell.style.setProperty('--c', info.line);
+    if (info.head) cell.style.setProperty('--hc', info.head);
+    var head = document.createElement('div');
+    head.className = 'ghead';
+    if (first) head.innerHTML = '<h2 class="disp">' + esc(info.title) + '</h2><span>' + esc(info.sub) + '</span>';
+    cell.appendChild(head);
     var card = document.createElement('article');
     card.className = 'card';
     card.dataset.id = it.id;
@@ -1686,7 +1719,7 @@ function drawItems() {
       if (it.posted && document.body.classList.contains('hideposted') && !REDUCE) {
         /* it is about to disappear from view, so let it leave instead of vanishing */
         card.classList.add('gone');
-        setTimeout(function () { card.classList.remove('gone'); apply(); }, 260);
+        setTimeout(function () { card.classList.remove('gone'); apply(); drawItems(); }, 260);
       } else {
         morph(card, apply);
       }
@@ -1731,8 +1764,11 @@ function drawItems() {
       }, { passive: true });
     }
 
-    g.appendChild(card);
+    cell.appendChild(card);
+    g.appendChild(cell);
   });
+  if (!list.length) emptyState(g);
+  requestAnimationFrame(relabel);
   tally();
 }
 
@@ -1898,6 +1934,7 @@ el('hidePosted').addEventListener('click', function () {
   var on = el('hidePosted').getAttribute('aria-checked') !== 'true';
   el('hidePosted').setAttribute('aria-checked', String(on));
   document.body.classList.toggle('hideposted', on);
+  drawItems();
 });
 
 /* ---------- boot ---------- */
