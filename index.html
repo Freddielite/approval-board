@@ -454,16 +454,55 @@ function drawTabs() {
 
 function loadFolders() {
   el('sub').textContent = 'Loading…';
-  db.from('folders').select('*').eq('brand', brand).order('created_at', { ascending: false })
+  var asked = brand;
+  db.from('folders').select('*').eq('brand', asked).order('created_at', { ascending: false })
     .then(function (r) {
+      if (asked !== brand) return;   /* tab changed while this was loading */
       if (r.error) { el('sub').textContent = r.error.message; return; }
       folders = r.data || [];
-      if (!folderId || !folders.some(function (f) { return f.id === folderId; })) {
+      if (asked === INBOX) {
+        /* New is one folder. If it is missing, make it; if two exist, use the oldest
+           so every open board lands on the same one. */
+        if (!folders.length) { makeInbox().catch(function () {}); return; }
+        folderId = folders[folders.length - 1].id;
+      } else if (!folderId || !folders.some(function (f) { return f.id === folderId; })) {
         folderId = folders.length ? folders[0].id : null;
       }
       drawFolders();
       loadItems();
     });
+}
+
+/* find New, or create it if it really is missing */
+function ensureInbox() {
+  return db.from('folders').select('id').eq('brand', INBOX)
+    .order('created_at', { ascending: true }).limit(1)
+    .then(function (r) {
+      if (r.error) throw r.error;
+      if (r.data && r.data.length) { folderId = r.data[0].id; return folderId; }
+      return makeInbox();
+    });
+}
+
+/* the New folder is created here, once, whenever it is found missing */
+var inboxMaking = null;
+function makeInbox() {
+  if (!inboxMaking) {
+    inboxMaking = db.from('folders').insert({ brand: INBOX, name: INBOX }).select().single()
+      .then(function (r) {
+        inboxMaking = null;
+        if (r.error) throw r.error;
+        if (brand === INBOX) folderId = r.data.id;
+        return r.data.id;
+      }, function (e) { inboxMaking = null; throw e; });
+  }
+  return inboxMaking.then(function (id) {
+    if (brand === INBOX) loadFolders();
+    return id;
+  }).catch(function (e) {
+    el('sub').textContent = 'Could not set up New: ' + (e.message || e);
+    throw e;
+  });
 }
 
 function drawFolders() {
@@ -546,7 +585,11 @@ function loadItems() {
 /* ---------- uploads ---------- */
 el('add').addEventListener('click', function () {
   if (brand === INBOX) {
-    if (!folderId) { toast('One moment, setting up New'); return; }
+    if (!folderId) {
+      /* still loading or missing: make sure it exists, then open the picker */
+      ensureInbox().then(function () { el('picker').click(); }, function () {});
+      return;
+    }
     el('picker').click();
     return;
   }
@@ -684,6 +727,7 @@ function send(jobs) {
 function folderFor(targetBrand, name) {
   if (targetBrand === brand && folderId) return Promise.resolve(folderId);
   return db.from('folders').select('*').eq('brand', targetBrand).eq('name', name)
+    .order('created_at', { ascending: true })
     .then(function (r) {
       if (r.data && r.data.length) return r.data[0].id;
       return db.from('folders').insert({ brand: targetBrand, name: name }).select().single()
@@ -1246,7 +1290,7 @@ el('hidePosted').addEventListener('change', function (e) {
 /* ---------- boot ---------- */
 try {
   var savedBrand = localStorage.getItem('ab:brand');
-  if (savedBrand && BRANDS.some(function (b) { return b.name === savedBrand; })) brand = savedBrand;
+  if (savedBrand && (savedBrand === INBOX || BRANDS.some(function (b) { return b.name === savedBrand; }))) brand = savedBrand;
   if (localStorage.getItem('ab:ok')) unlock();
 } catch (e) {}
 </script></body></html>
