@@ -2,6 +2,9 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Content approvals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:dark;--bg:#0E0B09;--card:#17120F;--line:rgba(255,255,255,.1);
  --ink:#F6F1EC;--mut:rgba(246,241,236,.56);--ok:#22B465;--warn:#E8A317;--no:#E0453C;
@@ -48,7 +51,8 @@ button,input,textarea{font:inherit;color:inherit}
 .grid{display:grid;gap:16px;margin-top:16px}
 @media(min-width:760px){.grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:1140px){.grid{grid-template-columns:repeat(3,1fr)}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+ transition:border-color .35s,opacity .35s}
 .card[data-verdict=approved]{border-color:rgba(34,180,101,.6)}
 .card[data-verdict=changes]{border-color:rgba(232,163,23,.6)}
 .card[data-verdict=rejected]{border-color:rgba(224,69,60,.55)}
@@ -120,7 +124,7 @@ body.hideposted .card[data-posted="1"]{display:none}
 .flag.ok{background:rgba(34,180,101,.14);color:var(--ok)}
 .toast{position:fixed;left:50%;bottom:104px;transform:translate(-50%,16px);z-index:40;
  background:var(--ink);color:#0E0B09;font:600 14px/1 inherit;padding:12px 18px;
- border-radius:999px;opacity:0;transition:.22s;pointer-events:none;max-width:86vw;
+ border-radius:999px;opacity:0;transition:opacity .2s,transform .38s var(--spring);pointer-events:none;max-width:86vw;
  text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;
@@ -161,9 +165,9 @@ body.hideposted .card[data-posted="1"]{display:none}
 .popcard{width:100%;max-width:460px;background:var(--card);border:1px solid var(--line);
  border-radius:20px 20px 0 0;padding:18px 16px;
  padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
- max-height:80vh;overflow-y:auto;transform:translateY(14px);transition:transform .18s}
-.pop.show .popcard{transform:translateY(0)}
-@media(min-width:620px){.pop{align-items:center}.popcard{border-radius:20px}}
+ max-height:80vh;overflow-y:auto;transform:translateY(48px);transition:transform .16s ease-in}
+.pop.show .popcard{transform:none;transition:transform .38s var(--spring)}
+@media(min-width:620px){.pop{align-items:center}.popcard{border-radius:20px;transform:scale(.94)}}
 .popcard h4{font-size:17px}
 .popcard .msg{font-size:14px;color:var(--mut);margin-top:6px}
 .popcard input{width:100%;margin-top:14px;background:rgba(255,255,255,.05);
@@ -183,6 +187,95 @@ body.hideposted .card[data-posted="1"]{display:none}
 .busy{position:fixed;inset:0;z-index:45;background:rgba(14,11,9,.7);display:none;
  align-items:center;justify-content:center;font-size:14px}
 .busy.on{display:flex}
+
+:root{--spring:cubic-bezier(.2,1.15,.3,1);--out:cubic-bezier(.2,.8,.2,1)}
+button{transition:transform .12s var(--out),background-color .2s,border-color .2s,color .2s}
+button:active{transform:scale(.96)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.row button[aria-pressed=true]{animation:tabpop .34s var(--spring)}
+@keyframes tabpop{0%{transform:scale(.9)}100%{transform:scale(1)}}
+
+/* the rubber stamp */
+.stamp{position:absolute;top:16px;right:16px;z-index:4;pointer-events:none;transform:rotate(var(--r,-8deg));
+ filter:drop-shadow(0 1px 0 rgba(0,0,0,.45))}
+.stamp b{display:block;padding:3px;border:2.5px solid currentColor;border-radius:9px;
+ -webkit-mask-image:var(--inkmask);mask-image:var(--inkmask);
+ -webkit-mask-size:280% 280%;mask-size:280% 280%;
+ -webkit-mask-position:var(--mx,30%) var(--my,60%);mask-position:var(--mx,30%) var(--my,60%)}
+.stamp i{display:block;font:400 29px/1 Anton,Impact,"Arial Black",sans-serif;font-style:normal;
+ letter-spacing:.07em;text-transform:uppercase;padding:7px 13px 6px;
+ border:4px solid currentColor;border-radius:6px}
+.stamp[data-v=approved]{color:#35D683}
+.stamp[data-v=changes]{color:#F2A81E}
+.stamp[data-v=rejected]{color:#FF5A4F}
+.card[data-posted="1"] .stamp{display:none}
+.stamp.slam{animation:slam .4s cubic-bezier(.3,.9,.35,1.1) both}
+@keyframes slam{
+ 0%{transform:translateY(-22px) rotate(calc(var(--r,-8deg) - 10deg)) scale(2.7);opacity:0}
+ 60%{transform:rotate(calc(var(--r,-8deg) + 1.5deg)) scale(.9);opacity:1}
+ 100%{transform:rotate(var(--r,-8deg)) scale(1);opacity:1}}
+.stamp.lift{animation:lift .26s ease-in both}
+@keyframes lift{to{transform:translateY(-28px) rotate(calc(var(--r,-8deg) - 5deg)) scale(1.18);opacity:0}}
+.splat{position:absolute;z-index:3;pointer-events:none;width:130px;height:130px;margin:-65px 0 0 -65px;
+ border-radius:50%;border:3px solid currentColor;animation:splat .5s ease-out both}
+@keyframes splat{0%{transform:scale(.3);opacity:.75}100%{transform:scale(1.9);opacity:0}}
+
+/* loading placeholders */
+.skel{border-radius:18px;border:1px solid var(--line);background:var(--card);overflow:hidden}
+.skel i{display:block;background:linear-gradient(90deg,rgba(255,255,255,.035) 30%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.035) 70%);
+ background-size:250% 100%;animation:shimmer 1.3s linear infinite}
+.skel .m{aspect-ratio:4/5;max-height:52vh}
+.skel .l{height:16px;margin:18px 16px 10px;border-radius:6px;width:58%}
+.skel .s{height:12px;margin:0 16px;border-radius:6px;width:28%}
+.skel .v{height:46px;margin:18px 16px 16px;border-radius:11px}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
+
+/* cards arriving after a tab or folder change */
+.grid.enter>*{animation:rise .44s var(--out) both;animation-delay:calc(var(--i,0) * 45ms)}
+.grid.enter.fromR>*{animation-name:fromR}
+.grid.enter.fromL>*{animation-name:fromL}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+@keyframes fromR{from{opacity:0;transform:translateX(32px)}}
+@keyframes fromL{from{opacity:0;transform:translateX(-32px)}}
+
+/* after the entrance rules so these win */
+.card.thud{animation:thud .36s ease-out}
+@keyframes thud{0%{transform:none}22%{transform:scale(.982) translate(-2px,2px)}
+ 48%{transform:scale(.992) translate(2px,-1px)}74%{transform:translate(-1px,1px)}100%{transform:none}}
+.card.gone{animation:gone .26s ease-in both}
+@keyframes gone{to{opacity:0;transform:scale(.95)}}
+
+.sheet.on{animation:fade .2s both}
+.sheet.on .panel{animation:up .42s var(--spring) both}
+@keyframes fade{from{opacity:0}}
+@keyframes up{from{transform:translateY(60px);opacity:.4}}
+
+.gate{transition:opacity .28s}
+.gate.out{opacity:0;pointer-events:none}
+.gate input.no{animation:no .4s}
+@keyframes no{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+
+.update{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:29;
+ max-width:520px;margin:0 auto;display:none;align-items:center;gap:12px;padding:10px 10px 10px 16px;
+ background:var(--card);border:1px solid rgba(255,255,255,.18);border-radius:14px}
+.update.on{display:flex;animation:up .42s var(--spring) both}
+.update span{flex:1;font-size:13px}
+.update .solid{padding:9px 14px;font-size:13px}
+#hidePosted{-webkit-appearance:none;appearance:none;width:30px;height:18px;border-radius:99px;
+ background:rgba(255,255,255,.2);position:relative;vertical-align:-4px;margin-right:8px;
+ transition:background-color .2s;cursor:pointer}
+#hidePosted::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+ background:var(--ink);transition:transform .26s var(--spring)}
+#hidePosted:checked{background:var(--ok)}
+#hidePosted:checked::after{transform:translateX(12px)}
+label.ghost{cursor:pointer;display:inline-flex;align-items:center}
+
+@media (prefers-reduced-motion:reduce){
+ *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0ms!important;
+  animation-iteration-count:1!important;transition-duration:.01ms!important}
+ .stamp.slam{animation:fadein .25s both!important}
+ @keyframes fadein{from{opacity:0}}
+}
 </style></head><body>
 
 <div class="gate" id="gate"><div>
@@ -203,7 +296,7 @@ body.hideposted .card[data-posted="1"]{display:none}
   <div class="folders" id="folders"></div>
   <div class="actions">
     <span class="hint" id="hint"></span>
-    <label class="ghost"><input type="checkbox" id="hidePosted" style="margin-right:6px">
+    <label class="ghost"><input type="checkbox" id="hidePosted">
       Hide posted</label>
     <button class="ghost" id="add">+ Add content</button>
   </div>
@@ -225,6 +318,8 @@ body.hideposted .card[data-posted="1"]{display:none}
 </div></div>
 <div class="work" id="work"><b id="worktitle"></b><i id="workbar"><u></u></i></div>
 <div class="pop" id="pop"><div class="popcard" id="popcard"></div></div>
+<div class="update" id="update"><span>A new version of the board is ready</span>
+  <button class="solid" id="updateGo" type="button">Refresh</button></div>
 <div class="toast" id="toast"></div>
 <div class="busy" id="busy">Working…</div>
 
@@ -250,6 +345,106 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('on');
   clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('on'); }, 2200);
 }
+var REDUCE = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var navAnim = null;   /* 'up', 'fromL' or 'fromR' when the next draw follows a tab or folder change */
+
+/* worn ink: one speckle texture, each stamp shows a different patch of it */
+(function () {
+  try {
+    var c = document.createElement('canvas'); c.width = c.height = 240;
+    var x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 240, 240);
+    x.globalCompositeOperation = 'destination-out';
+    for (var i = 0; i < 1100; i++) {
+      x.globalAlpha = Math.random() * 0.85;
+      x.beginPath();
+      x.arc(Math.random() * 240, Math.random() * 240, Math.random() * 1.7 + 0.3, 0, 7);
+      x.fill();
+    }
+    for (i = 0; i < 18; i++) {
+      x.globalAlpha = 0.2 + Math.random() * 0.45;
+      x.fillRect(Math.random() * 240, Math.random() * 240, 16 + Math.random() * 70, 1 + Math.random() * 2);
+    }
+    for (i = 0; i < 5; i++) {
+      var cx = Math.random() * 240, cy = Math.random() * 240, r = 10 + Math.random() * 22;
+      var gr = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      x.globalAlpha = 1; x.fillStyle = gr; x.fillRect(cx - r, cy - r, r * 2, r * 2);
+    }
+    document.documentElement.style.setProperty('--inkmask', 'url(' + c.toDataURL('image/png') + ')');
+  } catch (e) {}
+})();
+
+function hashOf(str) {
+  var h = 0;
+  for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+var STAMP = { approved: 'Approved', changes: 'Changes', rejected: 'Rejected' };
+
+/* put the verdict stamp on a card; animate only when this person just tapped */
+function setStamp(card, v, id, animate) {
+  var old = card.querySelector('.stamp:not(.lift)');
+  var motion = animate && !REDUCE;
+  if (old) {
+    if (motion) {
+      old.classList.remove('slam'); old.classList.add('lift');
+      setTimeout(function () { old.remove(); }, 270);
+    } else old.remove();
+  }
+  if (!v) return;
+  var h = hashOf(String(id));
+  var s = document.createElement('div');
+  s.className = 'stamp'; s.dataset.v = v; s.setAttribute('aria-hidden', 'true');
+  s.style.setProperty('--r', (-12 + h % 8) + 'deg');
+  s.style.setProperty('--mx', (h >> 3) % 100 + '%');
+  s.style.setProperty('--my', (h >> 9) % 100 + '%');
+  s.innerHTML = '<b><i>' + STAMP[v] + '</i></b>';
+  card.appendChild(s);
+  if (!animate) return;
+  var wait = old && motion ? 170 : 0;
+  if (wait) s.style.animationDelay = wait + 'ms';
+  s.classList.add('slam');
+  if (!motion) return;
+  setTimeout(function () {
+    if (!s.isConnected) return;
+    card.classList.remove('thud'); void card.offsetWidth; card.classList.add('thud');
+    setTimeout(function () { card.classList.remove('thud'); }, 380);
+    var sp = document.createElement('div');
+    sp.className = 'splat';
+    sp.style.color = getComputedStyle(s).color;
+    sp.style.left = (s.offsetLeft + s.offsetWidth / 2) + 'px';
+    sp.style.top = (s.offsetTop + s.offsetHeight / 2) + 'px';
+    card.appendChild(sp);
+    setTimeout(function () { sp.remove(); }, 520);
+    try { if (navigator.vibrate) navigator.vibrate(18); } catch (e) {}
+  }, wait + 240);
+}
+
+/* animate a card's height across a change that adds or removes parts of it */
+function morph(card, change) {
+  if (REDUCE) { change(); return; }
+  var h0 = card.offsetHeight;
+  change();
+  var h1 = card.offsetHeight;
+  if (h0 === h1 || !h1) return;
+  card.style.height = h0 + 'px'; void card.offsetHeight;
+  card.style.transition = 'height .34s cubic-bezier(.3,.8,.3,1),border-color .35s,opacity .35s';
+  card.style.height = h1 + 'px';
+  setTimeout(function () { card.style.height = ''; card.style.transition = ''; }, 360);
+}
+
+/* placeholder cards while a tab or folder loads */
+function skeleton() {
+  var g = el('grid');
+  var a = document.activeElement;
+  if (a && g.contains(a) && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return;
+  var one = '<div class="skel" aria-hidden="true"><i class="m"></i><i class="l"></i><i class="s"></i><i class="v"></i></div>';
+  g.classList.remove('enter', 'fromL', 'fromR');
+  g.innerHTML = one + one + one;
+}
+
 function busy(on) {
   var b = el('busy');
   b.classList.toggle('on', !!on);
@@ -294,6 +489,7 @@ function openPop(html, wire) {
       pop.classList.remove('on'); card.innerHTML = '';
     }, 160);
     pop.onclick = null; document.onkeydown = null; popBusy = false;
+    if (live.missed) setTimeout(refresh, 250);
   }
   popBusy = true;
   pop.onclick = function (e) { if (e.target === pop) { close(); wire.cancel && wire.cancel(); } };
@@ -364,15 +560,21 @@ function confirmBox(title, msg, okText) {
 }
 
 /* ---------- gate ---------- */
-function unlock() {
-  el('gate').style.display = 'none';
+function unlock(fade) {
+  var g = el('gate');
+  if (fade) { g.classList.add('out'); setTimeout(function () { g.style.display = 'none'; }, 300); }
+  else g.style.display = 'none';
   start();
 }
 el('enter').addEventListener('click', function () {
   if (el('code').value.trim() === PASSCODE) {
     try { localStorage.setItem('ab:ok', '1'); } catch (e) {}
-    unlock();
-  } else { toast('Wrong passcode'); }
+    unlock(true);
+  } else {
+    var c = el('code');
+    c.classList.remove('no'); void c.offsetWidth; c.classList.add('no');
+    toast('Wrong passcode');
+  }
 });
 el('code').addEventListener('keydown', function (e) {
   if (e.key === 'Enter') el('enter').click();
@@ -409,25 +611,134 @@ function syncSchema() {
   }).catch(function (e) { console.warn('schema check skipped', e); });
 }
 
+/* a save from this page comes straight back over the live feed; when the row
+   already matches what is on screen there is nothing to redraw, and redrawing
+   would cut off the stamp and restart any playing video */
+function isEcho(p) {
+  if (!p || p.eventType !== 'UPDATE' || !p.new) return false;
+  var mine = items.filter(function (x) { return x.id === p.new.id; })[0];
+  if (!mine) return false;
+  return Object.keys(p.new).every(function (k) {
+    if (!(k in mine)) return p.new[k] == null;
+    return JSON.stringify(mine[k]) === JSON.stringify(p.new[k]);
+  });
+}
+
 /* someone else's change shows up here without a refresh */
+var live = { ch: null, status: 'connecting', up: false, retry: 0, t: 0, missed: false, drawPending: false };
+var POLL_MS = 30000, VERSION_MS = 5 * 60000;
+
+/* uploads and conversions redraw when they finish, so changes wait until then */
+function busyNow() { return working || queue.length > 0; }
+
 function listen() {
+  clearTimeout(live.t);
+  var old = live.ch; live.ch = null;
+  if (old) { try { db.removeChannel(old); } catch (e) {} }
+  var ch;
   try {
-    db.channel('board')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' },
-        function () { if (!working) loadItems(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' },
-        function () { if (!working) loadFolders(); })
-      .subscribe();
+    ch = db.channel('board-' + Date.now());
+    live.ch = ch;
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, function (p) {
+        if (busyNow()) { live.missed = true; return; }
+        if (!isEcho(p)) loadItems();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, function () {
+        if (busyNow()) { live.missed = true; return; }
+        loadFolders(true);
+      })
+      .subscribe(function (status) {
+        if (ch !== live.ch) return;
+        if (status === 'SUBSCRIBED') {
+          var back = live.up && live.status !== 'SUBSCRIBED';
+          live.status = status; live.up = true; live.retry = 0;
+          if (back) refresh();   /* fetch whatever happened while the line was down */
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          live.status = status;
+          clearTimeout(live.t);
+          var wait = Math.min(30000, 2000 * Math.pow(2, live.retry++));
+          live.t = setTimeout(function () { if (ch === live.ch) listen(); }, wait);
+        }
+      });
   } catch (e) { console.warn('live updates unavailable', e); }
 }
+
+/* quiet re-fetch; redraws only if something actually changed */
+function refresh() {
+  if (!db) return;
+  if (busyNow() || popBusy) { live.missed = true; return; }
+  live.missed = false;
+  loadFolders(true);
+}
+
+/* a new version of the board is live: reload when nothing would be lost */
+var bootSig = null, updateWaiting = false, lastInput = Date.now();
+['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) {
+  window.addEventListener(ev, function () { lastInput = Date.now(); }, { passive: true, capture: true });
+});
+function safeToReload() {
+  if (busyNow() || popBusy || el('sheet').classList.contains('on')) return false;
+  var a = document.activeElement;
+  if (a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'checkbox'))) return false;
+  return !Array.prototype.some.call(document.querySelectorAll('video'), function (v) {
+    return !v.paused && !v.ended;
+  });
+}
+function checkVersion() {
+  if (!window.fetch) return;
+  fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.text() : null; })
+    .then(function (t) {
+      if (!t) return;
+      var sig = hashOf(t);
+      if (bootSig === null) { bootSig = sig; return; }
+      if (sig !== bootSig) { updateWaiting = true; maybeReload(); }
+    }).catch(function () {});
+}
+function maybeReload() {
+  if (!updateWaiting) return;
+  if (safeToReload() && (document.hidden || Date.now() - lastInput > 60000)) { location.reload(); return; }
+  el('update').classList.add('on');
+}
+el('updateGo').addEventListener('click', function () {
+  if (busyNow()) { toast('Wait for the upload to finish first'); return; }
+  location.reload();
+});
+
+function wake() {
+  if (!db || document.hidden) return;
+  refresh();
+  if (live.status !== 'SUBSCRIBED') { live.retry = 0; listen(); }
+  checkVersion();
+}
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) maybeReload(); else wake();
+});
+window.addEventListener('online', wake);
+window.addEventListener('pageshow', function (e) { if (e.persisted) wake(); });
+
+/* a redraw skipped while someone was typing happens once they leave the box */
+document.addEventListener('focusout', function (e) {
+  if (!live.drawPending || !el('grid').contains(e.target)) return;
+  setTimeout(function () {
+    var a = document.activeElement;
+    if (a && el('grid').contains(a) && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT')) return;
+    live.drawPending = false;
+    loadItems(true);
+  }, 400);
+});
 
 function start() {
   if (!window.supabase) { el('sub').textContent = 'Could not load. Check connection.'; return; }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   drawTabs();
+  navAnim = 'up'; skeleton();
   syncSchema().then(function () {
     loadFolders();
     listen();
+    checkVersion();
+    setInterval(function () { if (!document.hidden) refresh(); maybeReload(); }, POLL_MS);
+    setInterval(function () { if (!document.hidden) checkVersion(); }, VERSION_MS);
   });
 }
 
@@ -440,6 +751,10 @@ function drawTabs() {
     btn.textContent = b.name;
     btn.setAttribute('aria-pressed', String(b.name === brand));
     btn.addEventListener('click', function () {
+      if (b.name === brand) return;
+      var names = [INBOX].concat(BRANDS.map(function (x) { return x.name; }));
+      navAnim = names.indexOf(b.name) > names.indexOf(brand) ? 'fromR' : 'fromL';
+      skeleton();
       brand = b.name; folderId = null;
       try { localStorage.setItem('ab:brand', brand); } catch (e) {}
       drawTabs(); loadFolders();
@@ -452,13 +767,14 @@ function drawTabs() {
   });
 }
 
-function loadFolders() {
-  el('sub').textContent = 'Loading…';
+function loadFolders(quiet) {
+  if (!quiet) el('sub').textContent = 'Loading…';
   var asked = brand;
   db.from('folders').select('*').eq('brand', asked).order('created_at', { ascending: false })
     .then(function (r) {
       if (asked !== brand) return;   /* tab changed while this was loading */
-      if (r.error) { el('sub').textContent = r.error.message; return; }
+      if (r.error) { if (!quiet) el('sub').textContent = r.error.message; return; }
+      var same = JSON.stringify(folders) === JSON.stringify(r.data || []);
       folders = r.data || [];
       if (asked === INBOX) {
         /* New is one folder. If it is missing, make it; if two exist, use the oldest
@@ -468,7 +784,7 @@ function loadFolders() {
       } else if (!folderId || !folders.some(function (f) { return f.id === folderId; })) {
         folderId = folders.length ? folders[0].id : null;
       }
-      drawFolders();
+      if (!quiet || !same) drawFolders();
       loadItems();
     });
 }
@@ -518,7 +834,10 @@ function drawFolders() {
     b.type = 'button';
     b.textContent = fo.name;
     b.setAttribute('aria-pressed', String(fo.id === folderId));
-    b.addEventListener('click', function () { folderId = fo.id; drawFolders(); loadItems(); });
+    b.addEventListener('click', function () {
+      if (fo.id === folderId) return;
+      folderId = fo.id; navAnim = 'up'; skeleton(); drawFolders(); loadItems();
+    });
     b.addEventListener('dblclick', function () { removeFolder(fo); });
     f.appendChild(b);
   });
@@ -570,14 +889,19 @@ function doRemoveFolder(fo) {
   }).catch(function (e) { busy(false); toast(String(e.message || e)); });
 }
 
-function loadItems() {
+function loadItems(force) {
   if (!folderId) { items = []; drawItems(); el('sub').textContent = brand; return; }
-  db.from('items').select('*').eq('folder_id', folderId)
+  var asked = folderId;
+  db.from('items').select('*').eq('folder_id', asked)
     .order('created_at', { ascending: true })
     .then(function (r) {
+      if (asked !== folderId) return;
       if (r.error) { toast(r.error.message); return; }
-      items = (r.data || []).sort(byDay);
+      var fresh = (r.data || []).sort(byDay);
+      var same = JSON.stringify(fresh) === JSON.stringify(items);
+      items = fresh;
       el('sub').textContent = brand;
+      if (same && !force && !navAnim && !live.drawPending && !el('grid').querySelector('.skel')) return;
       drawItems();
     });
 }
@@ -953,7 +1277,8 @@ function runQueue() {
     toast('Could not make a preview (' + why + '). The video itself is fine and already saved.');
   }).then(function () {
     working = false;
-    if (queue.length) runQueue(); else work(false);
+    if (queue.length) runQueue();
+    else { work(false); if (live.missed) refresh(); }
   });
 }
 
@@ -1026,9 +1351,21 @@ function drawItems() {
   var typing = document.activeElement;
   if (typing && g.contains(typing) &&
       (typing.tagName === 'TEXTAREA' || typing.tagName === 'INPUT')) {
+    live.drawPending = true;   /* drawn once they leave the box */
     return;   /* someone is mid sentence, leave the page alone */
   }
   g.innerHTML = '';
+  g.classList.remove('enter', 'fromL', 'fromR');
+  var anim = navAnim; navAnim = null;
+  if (anim && !REDUCE) {
+    requestAnimationFrame(function () {
+      Array.prototype.forEach.call(g.children, function (c, i) { c.style.setProperty('--i', Math.min(i, 8)); });
+      g.classList.add('enter');
+      if (anim !== 'up') g.classList.add(anim);
+      clearTimeout(g._enter);
+      g._enter = setTimeout(function () { g.classList.remove('enter', 'fromL', 'fromR'); }, 1000);
+    });
+  }
   if (!folderId) { g.innerHTML = '<p class="empty">No folders yet for ' + esc(brand) + '.</p>'; tally(); return; }
   if (!items.length) { g.innerHTML = '<p class="empty">Nothing in this folder yet.</p>'; tally(); return; }
 
@@ -1066,7 +1403,7 @@ function drawItems() {
           : '')
       + '<button type="button" class="dayset">' + esc(it.day || 'No day') + '</button>'
       + '<input class="title" value="' + esc(it.title) + '">'
-      + '<p class="fmt">' + (it.kind === 'video' ? 'Video' : paths.length + ' slides') + '</p>'
+      + '<p class="fmt">' + (it.kind === 'video' ? 'Video' : paths.length + (paths.length === 1 ? ' slide' : ' slides')) + '</p>'
       + '<details class="cap"><summary>Caption</summary>'
       + '<textarea placeholder="Write the caption here">' + esc(it.caption) + '</textarea>'
       + '<button class="ghost copy" type="button">Copy caption</button></details>'
@@ -1100,10 +1437,12 @@ function drawItems() {
         it.verdict = v;
         if (v) card.dataset.verdict = v; else card.removeAttribute('data-verdict');
         paintVerdict();
+        setStamp(card, v, it.id, true);
         patch(it.id, { verdict: v }); tally();
       });
     });
     paintVerdict();
+    setStamp(card, it.verdict, it.id, false);
 
     var dsel = card.querySelector('.dayset');
     dsel.addEventListener('click', function () {
@@ -1156,9 +1495,19 @@ function drawItems() {
     var post = card.querySelector('.post');
     post.addEventListener('click', function () {
       it.posted = !it.posted;
-      card.dataset.posted = it.posted ? '1' : '0';
-      post.textContent = it.posted ? 'Undo posted' : 'Mark as posted';
-      patch(it.id, { posted: it.posted }); tally();
+      patch(it.id, { posted: it.posted });
+      function apply() {
+        card.dataset.posted = it.posted ? '1' : '0';
+        post.textContent = it.posted ? 'Undo posted' : 'Mark as posted';
+        tally();
+      }
+      if (it.posted && document.body.classList.contains('hideposted') && !REDUCE) {
+        /* it is about to disappear from view, so let it leave instead of vanishing */
+        card.classList.add('gone');
+        setTimeout(function () { card.classList.remove('gone'); apply(); }, 260);
+      } else {
+        morph(card, apply);
+      }
     });
     card.querySelector('.drop').addEventListener('click', function () {
       confirmBox('Delete this item?', it.title || '', 'Delete').then(function (yes) {
@@ -1168,7 +1517,12 @@ function drawItems() {
       if (it.preview) dead.push(it.preview);
       var step = dead.length ? db.storage.from(BUCKET).remove(dead) : Promise.resolve({});
       step.then(function () { return db.from('items').delete().eq('id', it.id); })
-        .then(function () { busy(false); loadItems(); toast('Deleted'); })
+        .then(function () {
+          busy(false); toast('Deleted');
+          if (REDUCE) { loadItems(); return; }
+          card.classList.add('gone');
+          setTimeout(loadItems, 260);
+        })
         .catch(function (e) { busy(false); toast(String(e.message || e)); });
       });
     });
