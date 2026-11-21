@@ -531,6 +531,75 @@ function extOf(path) {
   var e = m ? '.' + m[1].toLowerCase() : '';
   return e === '.mov' ? '.mp4' : e;
 }
+/* ---------- carousels download together ---------- */
+var JSZIP_URL = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+var zipLib = null;
+function loadZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (!zipLib) {
+    zipLib = new Promise(function (res, rej) {
+      var sc = document.createElement('script');
+      sc.src = JSZIP_URL;
+      sc.onload = function () { res(window.JSZip); };
+      sc.onerror = function () { zipLib = null; rej(new Error('Could not load the zip tool. Check the connection and try again')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return zipLib;
+}
+function saveBlob(blob, name) {
+  var u = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = u; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(u); }, 10000);
+}
+var carouselBusy = false;
+function downloadCarousel(it, paths) {
+  if (carouselBusy) { toast('One download at a time'); return; }
+  carouselBusy = true;
+  var base = safeName(it.title) || 'carousel', n = paths.length, got = 0;
+  toast('Getting ' + n + ' slides');
+  Promise.all(paths.map(function (p, i) {
+    return fetch(publicUrl(p), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('Slide ' + (i + 1) + ' could not be fetched (' + r.status + ')');
+      return r.blob();
+    }).then(function (b) {
+      got++; if (got < n) toast('Getting slides, ' + got + ' of ' + n);
+      return new File([b], base + ' ' + String(i + 1).padStart(2, '0') + extOf(p), { type: b.type || 'image/jpeg' });
+    });
+  })).then(function (files) {
+    var phone = window.matchMedia && matchMedia('(pointer: coarse)').matches
+      && navigator.canShare && navigator.canShare({ files: files });
+    if (!phone) return zipUp(files, base);
+    return choose(n + ' slides ready', [
+      { label: 'Save to phone', sub: 'all ' + n + ' at once', value: 'share' },
+      { label: 'Download as zip', value: 'zip' }
+    ], null, { kicker: it.title }).then(function (v) {
+      if (v === 'zip') return zipUp(files, base);
+      if (v === 'share') {
+        return navigator.share({ files: files, title: it.title }).catch(function (e) {
+          if (e && e.name !== 'AbortError') toast('Sharing did not open. Try the zip instead');
+        });
+      }
+    });
+  }).catch(function (e) {
+    toast(e && e.message ? e.message : 'Download failed');
+  }).then(function () { carouselBusy = false; });
+}
+function zipUp(files, base) {
+  toast('Zipping ' + files.length + ' slides');
+  return loadZip().then(function (JSZip) {
+    var z = new JSZip();
+    files.forEach(function (f) { z.file(f.name, f); });
+    /* pictures are already compressed, so they are stored as they are */
+    return z.generateAsync({ type: 'blob', compression: 'STORE' });
+  }).then(function (blob) {
+    saveBlob(blob, base + '.zip');
+    toast('Downloaded ' + files.length + ' slides as ' + base + '.zip');
+  });
+}
+
 function pull(path, filename) {
   var a = document.createElement('a');
   a.href = publicUrl(path) + '?download=' + encodeURIComponent(filename);
@@ -1699,13 +1768,8 @@ function drawItems() {
         toast('Downloading');
         return;
       }
-      /* browsers block a burst of downloads, so they go one at a time */
-      toast('Downloading ' + paths.length + ' slides');
-      paths.forEach(function (p, i) {
-        setTimeout(function () {
-          pull(p, base + ' ' + (i + 1) + extOf(p));
-        }, i * 900);
-      });
+      /* browsers block a burst of separate downloads, so a carousel comes as one bundle */
+      downloadCarousel(it, paths);
     });
 
     var mv = card.querySelector('.move');
